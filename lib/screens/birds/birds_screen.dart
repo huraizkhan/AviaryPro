@@ -794,9 +794,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
       children: birdList.map((bird) {
         final ring = bird['ringNumber']?.toString() ?? 'No ring';
         final name = bird['name']?.toString().trim() ?? '';
-        final species = bird['speciesName']?.toString() ?? 'No species';
         final gender = bird['gender']?.toString() ?? 'Unknown';
-        final cage = bird['cageIdentifier']?.toString() ?? 'No cage';
         final selected = selectedBirdIds.contains(bird['id'].toString());
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
