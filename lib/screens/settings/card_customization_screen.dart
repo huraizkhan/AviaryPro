@@ -95,7 +95,7 @@ class _CardCustomizationScreenState extends State<CardCustomizationScreen> {
                     physics: const NeverScrollableScrollPhysics(),
                     buildDefaultDragHandles: false,
                     itemCount: order.length,
-                    onReorder: (oldIndex, newIndex) =>
+                    onReorderItem: (oldIndex, newIndex) =>
                         prefs.reorder(screen, oldIndex, newIndex),
                     itemBuilder: (context, index) {
                       final id = order[index];

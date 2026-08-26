@@ -62,7 +62,6 @@ class CardCustomizationProvider extends ChangeNotifier {
       screen,
       () => List<String>.from(_defaults[screen] ?? const <String>[]),
     );
-    if (newIndex > oldIndex) newIndex--;
     final item = list.removeAt(oldIndex);
     list.insert(newIndex, item);
     await _saveScreen(screen);
