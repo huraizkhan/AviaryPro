@@ -6034,7 +6034,7 @@ class DatabaseHelper {
       ORDER BY species.name COLLATE NOCASE ASC,
         bird.mutation COLLATE NOCASE ASC,
         bird.ringNumber COLLATE NOCASE ASC
-    ''', [outingId, if (status != null) status]);
+    ''', [outingId, ?status]);
   }
 
   Future<void> returnSaleOutingBirds(String outingId) async {
