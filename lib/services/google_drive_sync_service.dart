@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import 'google_drive_backup_service.dart';
+import 'sync_status_service.dart';
 
 class SyncException implements Exception {
   const SyncException(this.message);
@@ -72,6 +73,19 @@ class GoogleDriveSyncService {
     return prefs.getString(_lastSyncErrorKey);
   }
 
+  Future<void> _recordFailure(Object error) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastSyncErrorKey, error.toString());
+    final lastSync = await lastSuccessfulSyncAt;
+    SyncStatusService.instance.showFailure(lastSuccessfulAt: lastSync);
+  }
+
+  Future<void> clearFailure() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastSyncErrorKey);
+    SyncStatusService.instance.clear();
+  }
+
   Future<String> _deviceId() async {
     final prefs = await SharedPreferences.getInstance();
     final existing = prefs.getString(_deviceIdKey);
@@ -105,8 +119,7 @@ class GoogleDriveSyncService {
       await setEnabled(true);
       return result;
     } catch (error) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_lastSyncErrorKey, error.toString());
+      await _recordFailure(error);
       return null;
     }
   }
@@ -121,7 +134,16 @@ class GoogleDriveSyncService {
       if (backupService.currentEmail == null) {
         await backupService.restorePreviousSession();
       }
-      if (backupService.currentEmail == null) return null;
+      if (backupService.currentEmail == null) {
+        if (await backupService.hasRememberedConnection) {
+          final authError = await backupService.lastAuthError;
+          await _recordFailure(
+            authError ??
+                'Google account needs attention. Sign in again from Backup & Sync.',
+          );
+        }
+        return null;
+      }
 
       final hasLocalChanges =
           await DatabaseHelper.instance.hasPendingSyncChanges();
@@ -149,8 +171,7 @@ class GoogleDriveSyncService {
 
       return await syncNow(interactive: false);
     } catch (error) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_lastSyncErrorKey, error.toString());
+      await _recordFailure(error);
       return null;
     }
   }
@@ -162,6 +183,8 @@ class GoogleDriveSyncService {
     if (_running) {
       throw const SyncException('A sync is already running.');
     }
+    final previousSync = await lastSuccessfulSyncAt;
+    SyncStatusService.instance.showSyncing(lastSuccessfulAt: previousSync);
     _running = true;
     final backupService = GoogleDriveBackupService.instance;
     DriveSession? session;
@@ -241,6 +264,7 @@ class GoogleDriveSyncService {
         _remoteSignature(settledFiles),
       );
       await prefs.remove(_lastSyncErrorKey);
+      SyncStatusService.instance.showSuccess(syncedAt);
 
       return SyncResult(
         downloadedChanges: downloaded,
@@ -248,8 +272,7 @@ class GoogleDriveSyncService {
         syncedAt: syncedAt,
       );
     } catch (error) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_lastSyncErrorKey, error.toString());
+      await _recordFailure(error);
       rethrow;
     } finally {
       session?.close();

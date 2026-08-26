@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../birds/add_bird_screen.dart';
@@ -17,6 +18,7 @@ import '../search/global_search_screen.dart';
 import '../../services/google_drive_backup_service.dart';
 import '../../services/google_drive_sync_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/sync_status_service.dart';
 import '../../providers/bird_provider.dart';
 import '../../ui/aviary_design.dart';
 
@@ -37,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen>
   Timer? _syncTimer;
   Timer? _backupTimer;
   bool _cloudMaintenanceRunning = false;
+  final DateFormat _syncTimeFormat = DateFormat('h:mm a');
 
   static const _pageTitles = [
     'Dashboard',
@@ -90,6 +93,14 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _initializeCloud() async {
+    final syncService = GoogleDriveSyncService.instance;
+    final previousError = await syncService.lastSyncError;
+    if (previousError != null && previousError.trim().isNotEmpty) {
+      SyncStatusService.instance.restorePersistentFailure(
+        lastSuccessfulAt: await syncService.lastSuccessfulSyncAt,
+      );
+    }
+
     try {
       await GoogleDriveBackupService.instance.restorePreviousSession();
     } catch (_) {
@@ -423,6 +434,92 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Widget _buildSyncBanner() {
+    return ValueListenableBuilder<SyncBannerState>(
+      valueListenable: SyncStatusService.instance.state,
+      builder: (context, state, _) {
+        if (state.kind == SyncBannerKind.idle) {
+          return const SizedBox.shrink();
+        }
+
+        final scheme = Theme.of(context).colorScheme;
+        final lastSync = state.lastSuccessfulAt;
+        final String text;
+        final Color background;
+        final Color foreground;
+        final IconData icon;
+
+        switch (state.kind) {
+          case SyncBannerKind.syncing:
+            text = 'Syncing.....';
+            background = scheme.surfaceContainerHigh;
+            foreground = scheme.onSurface;
+            icon = Icons.sync;
+            break;
+          case SyncBannerKind.success:
+            text = 'Synced successfully · ${_syncTimeFormat.format(lastSync!)}';
+            background = scheme.primaryContainer;
+            foreground = scheme.onPrimaryContainer;
+            icon = Icons.cloud_done_outlined;
+            break;
+          case SyncBannerKind.failed:
+            text = lastSync == null
+                ? 'Sync failed · No successful sync yet'
+                : 'Sync failed · Last sync ${_syncTimeFormat.format(lastSync)}';
+            background = Colors.red.shade700;
+            foreground = Colors.white;
+            icon = Icons.sync_problem;
+            break;
+          case SyncBannerKind.idle:
+            return const SizedBox.shrink();
+        }
+
+        return Material(
+          color: background,
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            child: SizedBox(
+              height: 40,
+              width: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    if (state.kind == SyncBannerKind.syncing)
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: foreground,
+                        ),
+                      )
+                    else
+                      Icon(icon, size: 19, color: foreground),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -496,22 +593,26 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       floatingActionButton: _buildAddMenu(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: NavigationBarTheme(
-        data: Theme.of(context).navigationBarTheme.copyWith(
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            final compact = MediaQuery.sizeOf(context).width < 360;
-            return TextStyle(
-              fontSize: compact ? 10.5 : 12,
-              fontWeight: states.contains(WidgetState.selected)
-                  ? FontWeight.w700
-                  : FontWeight.w500,
-            );
-          }),
-        ),
-        child: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: _selectTab,
-          destinations: [
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSyncBanner(),
+          NavigationBarTheme(
+            data: Theme.of(context).navigationBarTheme.copyWith(
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                final compact = MediaQuery.sizeOf(context).width < 360;
+                return TextStyle(
+                  fontSize: compact ? 10.5 : 12,
+                  fontWeight: states.contains(WidgetState.selected)
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                );
+              }),
+            ),
+            child: NavigationBar(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: _selectTab,
+              destinations: [
           NavigationDestination(
             icon: const AviaryIcon(AviaryIconType.dashboard),
             selectedIcon: const AviaryIcon(
@@ -553,8 +654,10 @@ class _HomeScreenState extends State<HomeScreen>
             selectedIcon: Icon(Icons.settings, color: AviaryColors.history),
             label: 'Settings',
           ),
-          ],
-        ),
+              ],
+            ),
+          ),
+        ],
       ),
       ),
     );

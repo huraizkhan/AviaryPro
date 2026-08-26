@@ -25,6 +25,8 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
   bool _busy = true;
   bool _syncEnabled = false;
   String? _email;
+  String? _rememberedEmail;
+  String? _authError;
   DateTime? _lastBackupAt;
   DateTime? _lastSyncAt;
   AutoBackupSchedule _schedule = const AutoBackupSchedule(
@@ -56,9 +58,21 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
       _lastBackupAt = await _backupService.lastManualBackupAt;
       _lastSyncAt = await _syncService.lastSuccessfulSyncAt;
       _syncEnabled = await _syncService.enabled;
-      // Opening this screen must also stay silent. Google UI is shown only
-      // after the user explicitly presses Connect.
+
+      final rememberedConnection =
+          await _backupService.hasRememberedConnection;
+      if (_backupService.currentEmail == null && rememberedConnection) {
+        await _backupService.restorePreviousSession();
+      }
       _email = _backupService.currentEmail;
+      _rememberedEmail = rememberedConnection
+          ? await _backupService.lastConnectedEmail
+          : null;
+      _authError = await _backupService.lastAuthError;
+      if (_email == null && rememberedConnection && _authError != null) {
+        _error = _authError;
+      }
+
       _backups = _email == null
           ? const <DriveBackupRecord>[]
           : await _backupService.listBackups(interactive: interactive);
@@ -76,17 +90,20 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
     });
     try {
       _email = await _backupService.connect();
+      _rememberedEmail = _email;
+      _authError = null;
       await _performSync(interactive: true);
       await _syncService.setEnabled(true);
       _syncEnabled = true;
       await _load(interactive: true);
     } catch (error) {
-      await _syncService.setEnabled(false);
       if (!mounted) return;
+      _email = _backupService.currentEmail;
+      _rememberedEmail = await _backupService.lastConnectedEmail;
+      _authError = await _backupService.lastAuthError;
       setState(() {
-        _syncEnabled = false;
         _busy = false;
-        _error = error.toString();
+        _error = _authError ?? error.toString();
       });
     }
   }
@@ -98,16 +115,8 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
       _error = null;
     });
     try {
-      final result = await _performSync(interactive: true);
+      await _performSync(interactive: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Sync completed · ${result.uploadedChanges} uploaded · '
-            '${result.downloadedChanges} applied',
-          ),
-        ),
-      );
       await context.read<BirdProvider>().loadBirds();
       await _load(interactive: true);
     } catch (error) {
@@ -244,9 +253,12 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
   Future<void> _disconnect() async {
     await _syncService.setEnabled(false);
     await _backupService.signOut();
+    await _syncService.clearFailure();
     if (!mounted) return;
     setState(() {
       _email = null;
+      _rememberedEmail = null;
+      _authError = null;
       _syncEnabled = false;
       _backups = const [];
       _error = null;
@@ -467,16 +479,20 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _email ?? 'Google Drive is not connected',
+                                    _email ??
+                                        _rememberedEmail ??
+                                        'Google Drive is not connected',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    _lastSyncAt == null
-                                        ? 'No successful sync yet'
-                                        : 'Last sync: ${_dateFormat.format(_lastSyncAt!)}',
+                                    _email == null && _rememberedEmail != null
+                                        ? 'Google account needs attention'
+                                        : _lastSyncAt == null
+                                            ? 'No successful sync yet'
+                                            : 'Last sync: ${_dateFormat.format(_lastSyncAt!)}',
                                   ),
                                 ],
                               ),
@@ -490,7 +506,11 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
                             child: FilledButton.icon(
                               onPressed: _busy ? null : _connect,
                               icon: const Icon(Icons.login),
-                              label: const Text('Connect Google Drive'),
+                              label: Text(
+                                _rememberedEmail == null
+                                    ? 'Connect Google Drive'
+                                    : 'Reconnect Google Drive',
+                              ),
                             ),
                           )
                         else

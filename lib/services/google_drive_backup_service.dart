@@ -128,12 +128,15 @@ class GoogleDriveBackupService {
   static const String _lastManualBackupAtKey =
       'drive_backup_last_manual_success_at';
   static const String _lastBackupEmailKey = 'drive_backup_account_email';
+  static const String _connectionIntentKey = 'drive_backup_account_connected';
+  static const String _lastAuthErrorKey = 'drive_backup_last_auth_error';
   static const String _pauseAfterRestoreChangeKey =
       'drive_backup_pause_after_restore_change';
 
   final GoogleSignIn _signIn = GoogleSignIn.instance;
 
   bool _initialized = false;
+  bool _restoreAttempted = false;
   GoogleSignInAccount? _account;
 
   String? get currentEmail => _account?.email;
@@ -152,15 +155,54 @@ class GoogleDriveBackupService {
     _initialized = true;
   }
 
+  Future<bool> get hasRememberedConnection async {
+    final prefs = await SharedPreferences.getInstance();
+    final explicit = prefs.getBool(_connectionIntentKey);
+    if (explicit != null) return explicit;
+
+    // Migrate users who connected Google Drive before this preference existed.
+    final legacyEmail = prefs.getString(_lastBackupEmailKey);
+    final connected = legacyEmail != null && legacyEmail.trim().isNotEmpty;
+    if (connected) await prefs.setBool(_connectionIntentKey, true);
+    return connected;
+  }
+
+  Future<String?> get lastAuthError async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastAuthErrorKey);
+  }
+
   Future<GoogleSignInAccount?> restorePreviousSession() async {
     await _initialize();
     if (_account != null) return _account;
 
+    final prefs = await SharedPreferences.getInstance();
+    var shouldRestore = prefs.getBool(_connectionIntentKey);
+    if (shouldRestore == null) {
+      final legacyEmail = prefs.getString(_lastBackupEmailKey);
+      shouldRestore = legacyEmail != null && legacyEmail.trim().isNotEmpty;
+      if (shouldRestore == true) {
+        await prefs.setBool(_connectionIntentKey, true);
+      }
+    }
+    if (shouldRestore != true || _restoreAttempted) return null;
+    _restoreAttempted = true;
+
     try {
       final future = _signIn.attemptLightweightAuthentication();
       _account = future == null ? null : await future;
+      if (_account == null) {
+        await prefs.setString(
+          _lastAuthErrorKey,
+          'Google account needs attention. Sign in again from Backup & Sync.',
+        );
+      } else {
+        await prefs.setString(_lastBackupEmailKey, _account!.email);
+        await prefs.remove(_lastAuthErrorKey);
+      }
       return _account;
-    } on GoogleSignInException {
+    } on GoogleSignInException catch (error) {
+      await prefs.setString(_lastAuthErrorKey, _friendlySignInError(error));
       return null;
     }
   }
@@ -179,9 +221,14 @@ class GoogleDriveBackupService {
       await _authorization(interactive: true);
 
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_connectionIntentKey, true);
       await prefs.setString(_lastBackupEmailKey, _account!.email);
+      await prefs.remove(_lastAuthErrorKey);
+      _restoreAttempted = true;
       return _account!.email;
     } on GoogleSignInException catch (error) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastAuthErrorKey, _friendlySignInError(error));
       throw BackupException(_friendlySignInError(error));
     }
   }
@@ -190,6 +237,11 @@ class GoogleDriveBackupService {
     await _initialize();
     await _signIn.signOut();
     _account = null;
+    _restoreAttempted = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_connectionIntentKey, false);
+    await prefs.remove(_lastBackupEmailKey);
+    await prefs.remove(_lastAuthErrorKey);
   }
 
   Future<GoogleSignInClientAuthorization> _authorization({
@@ -213,11 +265,15 @@ class GoogleDriveBackupService {
     }
 
     if (authorization == null) {
-      throw const BackupException(
-        'Google Drive permission is required. Open Backup & Sync and connect again.',
-      );
+      const message =
+          'Google Drive permission is required. Open Backup & Sync and connect again.';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastAuthErrorKey, message);
+      throw const BackupException(message);
     }
 
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastAuthErrorKey);
     return authorization;
   }
 
@@ -513,7 +569,7 @@ class GoogleDriveBackupService {
 
   String _friendlySignInError(GoogleSignInException error) {
     if (error.code == GoogleSignInExceptionCode.canceled) {
-      return 'Google sign-in was canceled. If you selected an account, check the OAuth package name, SHA-1, and Web client ID.';
+      return 'Google sign-in was canceled.';
     }
     if (error.code == GoogleSignInExceptionCode.clientConfigurationError) {
       return 'Google sign-in is not configured correctly. Check the Android OAuth client, SHA-1, package name, and Web client ID.';

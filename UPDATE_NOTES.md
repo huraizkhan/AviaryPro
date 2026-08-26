@@ -1,3 +1,15 @@
+# Aviary Pro v1.4.15+24
+
+- Google Drive sign-in is now opt-in and no longer launches repeatedly when no account has been connected.
+- Once Google Drive is connected, Aviary Pro remembers that connection across app restarts until Disconnect is used.
+- Existing v1.4.14 Google connections are migrated automatically using the remembered account email.
+- If a remembered Google session cannot be restored or authorized, Backup & Sync shows that the account needs attention instead of looping sign-in UI.
+- Added app-level sync status above the bottom navigation: `Syncing.....`, then `Synced successfully · time` for 2.5 seconds.
+- Sync failures stay visible in a red bar as `Sync failed · Last sync time` until a later sync succeeds.
+- The last successful sync time is preserved when a later sync fails.
+- Disconnect clears the remembered Google account and stale sync-failure banner.
+- No database schema migration and no data wipe.
+
 # Aviary Pro v1.4.14+23
 
 - Bird Card Layout now has a live preview, drag ordering, and Pill / Text / Icon / Hidden styles.
