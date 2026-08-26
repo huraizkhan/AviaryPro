@@ -343,7 +343,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
           CircleAvatar(
             radius: 27,
             backgroundColor: aviaryAvatarSurface(context),
-            child: const AviaryIcon(
+            child: AviaryIcon(
               AviaryIconType.bird,
               size: 30,
               color: Theme.of(context).colorScheme.primary,
