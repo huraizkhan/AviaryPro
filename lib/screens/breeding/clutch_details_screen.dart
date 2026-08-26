@@ -25,15 +25,6 @@ class ClutchDetailsScreen extends StatefulWidget {
 }
 
 class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
-  static const eggStatuses = <String>[
-    'Incubating',
-    'Fertile',
-    'Infertile',
-    'Dead Embryo',
-    'Cracked',
-    'Missing',
-  ];
-
   final dateFormat = DateFormat('dd-MMM-yy');
   Map<String, dynamic>? clutch;
   List<Map<String, dynamic>> eggs = [];
@@ -605,44 +596,9 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
     );
   }
 
-  Future<void> _showEggStatusPicker(Map<String, dynamic> egg) async {
-    final current = egg['status']?.toString() ?? 'Incubating';
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-          child: Wrap(
-            runSpacing: 6,
-            children: [
-              ListTile(
-                title: const Text(
-                  'Change egg status',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-                subtitle: Text('Current: $current'),
-              ),
-              ...eggStatuses
-                  .where((status) => status != current)
-                  .map(
-                    (status) => ListTile(
-                      leading: const Icon(Icons.egg_outlined),
-                      title: Text(status),
-                      onTap: () => Navigator.pop(sheetContext, status),
-                    ),
-                  ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (!mounted || selected == null) return;
-    await _changeEggStatus(egg, selected);
-  }
-
   Widget _eggCard(Map<String, dynamic> egg) {
     final status = egg['status']?.toString() ?? 'Incubating';
+    final statusLabel = status == 'Dead Embryo' ? 'Dead in Shell' : status;
     final fostered = egg['isFostered'] == 1;
     final isHatched = status == 'Hatched';
     final isPending = status == 'Incubating' || status == 'Fertile';
@@ -657,7 +613,7 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
             isHatched ? AviaryIconType.chick : AviaryIconType.egg,
           ),
         ),
-        title: Text('Egg ${egg['eggNumber']} — $status'),
+        title: Text('Egg ${egg['eggNumber']} — $statusLabel'),
         subtitle: Text(
           'Laid: ${_formatDate(egg['laidDate'])}\n'
           'Expected: ${_formatDate(egg['expectedHatchDate'])}'
@@ -674,21 +630,22 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
                     icon: const AviaryIcon(AviaryIconType.chick, size: 18),
                     label: const Text('Hatch'),
                   ),
+                  IconButton(
+                    tooltip: 'Foster Egg',
+                    onPressed: () => _fosterEgg(egg),
+                    icon: const Icon(Icons.swap_horiz),
+                  ),
                   PopupMenuButton<String>(
-                    tooltip: 'More egg actions',
+                    tooltip: 'Egg outcome',
                     onSelected: (value) {
-                      if (value == 'foster') _fosterEgg(egg);
-                      if (value == 'status') _showEggStatusPicker(egg);
+                      if (value == 'infertile') _changeEggStatus(egg, 'Infertile');
+                      if (value == 'dead') _changeEggStatus(egg, 'Dead Embryo');
+                      if (value == 'cracked') _changeEggStatus(egg, 'Cracked');
                     },
                     itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'foster',
-                        child: Text('Foster Egg'),
-                      ),
-                      PopupMenuItem(
-                        value: 'status',
-                        child: Text('Change Status…'),
-                      ),
+                      PopupMenuItem(value: 'infertile', child: Text('Infertile')),
+                      PopupMenuItem(value: 'dead', child: Text('Dead in Shell')),
+                      PopupMenuItem(value: 'cracked', child: Text('Cracked')),
                     ],
                   ),
                 ],
@@ -720,9 +677,25 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        subtitle: Text(
-          'Hatched: ${_formatDate(chick['hatchDate'])}\n'
-          '${inNest ? 'In nest' : active ? 'Moved to ${chick['cageIdentifier'] ?? 'another cage'}' : 'Removed: ${chick['removalReason'] ?? 'Inactive'}'}',
+        subtitle: Builder(
+          builder: (context) {
+            final biologicalPair = chick['biologicalPairIdentifier']?.toString();
+            final currentPair = chick['currentPairIdentifier']?.toString();
+            final fostered = biologicalPair != null &&
+                currentPair != null &&
+                biologicalPair.isNotEmpty &&
+                currentPair.isNotEmpty &&
+                biologicalPair != currentPair;
+            final sourceCage = chick['biologicalCageIdentifier']?.toString().trim() ?? '';
+            final fosterLine = fostered
+                ? '\nFostered from ${sourceCage.isEmpty ? 'biological pair' : aviaryCageLabel(sourceCage)}'
+                : '';
+            return Text(
+              'Hatched: ${_formatDate(chick['hatchDate'])}\n'
+              '${inNest ? 'In nest' : active ? 'Moved to ${chick['cageIdentifier'] ?? 'another cage'}' : 'Removed: ${chick['removalReason'] ?? 'Inactive'}'}'
+              '$fosterLine',
+            );
+          },
         ),
         isThreeLine: true,
         trailing: inNest

@@ -36,6 +36,10 @@ class _BreedingScreenState extends State<BreedingScreen> {
       activeOnly: activeOnly,
     );
     if (!mounted) return;
+    pairResult.sort((a, b) => _naturalCompare(
+          a['cageIdentifier']?.toString() ?? '',
+          b['cageIdentifier']?.toString() ?? '',
+        ));
     setState(() {
       summary = summaryResult;
       pairs = pairResult;
@@ -124,6 +128,20 @@ class _BreedingScreenState extends State<BreedingScreen> {
     );
   }
 
+  int _naturalCompare(String left, String right) {
+    final pattern = RegExp(r'(\d+|\D+)');
+    final a = pattern.allMatches(left.toLowerCase()).map((m) => m.group(0)!).toList();
+    final b = pattern.allMatches(right.toLowerCase()).map((m) => m.group(0)!).toList();
+    final length = a.length < b.length ? a.length : b.length;
+    for (var i = 0; i < length; i++) {
+      final an = int.tryParse(a[i]);
+      final bn = int.tryParse(b[i]);
+      final result = an != null && bn != null ? an.compareTo(bn) : a[i].compareTo(b[i]);
+      if (result != 0) return result;
+    }
+    return a.length.compareTo(b.length);
+  }
+
   String _birdLabel(Map<String, dynamic> pair, String prefix) {
     final name = pair['${prefix}Name']?.toString().trim();
     final ring = pair['${prefix}RingNumber']?.toString().trim() ?? '';
@@ -135,23 +153,38 @@ class _BreedingScreenState extends State<BreedingScreen> {
   }
 
   String _stage(Map<String, dynamic> pair) {
+    final activeClutches = (pair['activeClutchCount'] as num?)?.toInt() ?? 0;
+    final allClutches = (pair['totalClutchCount'] as num?)?.toInt() ?? 0;
     final chicks = (pair['chicksInNest'] as num?)?.toInt() ?? 0;
-    if (chicks > 0) return 'Chicks';
     final eggs = (pair['activeEggCount'] as num?)?.toInt() ?? 0;
+    final totalEggs = (pair['currentEggCount'] as num?)?.toInt() ?? 0;
+    final hatched = (pair['hatchedEggCount'] as num?)?.toInt() ?? 0;
+    final expected = (pair['expectedEggCount'] as num?)?.toInt() ?? 0;
+
+    if (activeClutches == 0) return allClutches == 0 ? 'Bonding' : 'Resting';
+    if (chicks > 0 && eggs == 0) return 'Chicks';
+
     if (eggs > 0) {
       final next = _nextHatch(pair);
+      if (hatched > 0) return 'Hatching';
       if (next != null) {
         final now = DateTime.now();
         final days = DateTime(next.year, next.month, next.day)
             .difference(DateTime(now.year, now.month, now.day))
             .inDays;
-        if (days >= -1 && days <= 1) return 'Hatching';
+        if (days <= 1) return 'Hatching';
       }
+      final latest = DateTime.tryParse(pair['latestEggDate']?.toString() ?? '');
+      final stillLayingByExpectation = expected > 0 && totalEggs < expected;
+      final stillLayingByRecency = expected == 0 &&
+          hatched == 0 &&
+          latest != null &&
+          DateTime.now().difference(latest).inDays <= 2;
+      if (stillLayingByExpectation || stillLayingByRecency) return 'Laying';
       return 'Incubating';
     }
-    final clutches = (pair['activeClutchCount'] as num?)?.toInt() ?? 0;
-    if (clutches > 0) return 'Laying';
-    return pair['breedingStatus'] == 'Active' ? 'Bonding' : 'Resting';
+
+    return chicks > 0 ? 'Chicks' : 'Resting';
   }
 
   Color _pairTint(Map<String, dynamic> pair) {

@@ -1,3 +1,17 @@
+# Aviary Pro v1.4.14+23
+
+- Bird Card Layout now has a live preview, drag ordering, and Pill / Text / Icon / Hidden styles.
+- Added optional card fields including cage, species, mutation, age, pair/sale status, gender, eye/down color, mate, parents, parent cages, source/dates, nest and notes.
+- Bird Details now shows parent cage/status information.
+- Automatic Count is compact by default with Show more / Show less.
+- Breeding pair status is automatic: Bonding, Laying, Incubating, Hatching, Chicks, Resting.
+- Removed Quick Observations and manual contradictory breeding-stage controls.
+- Restored natural numeric cage sorting in Breeding.
+- Egg card keeps Hatch as the primary action, Foster as a direct icon, and only Infertile / Dead in Shell / Cracked in the outcome menu.
+- Fostered chicks now show their biological source cage in the foster nest.
+- Pair IDs remain internal but are removed from normal Pair Details headings.
+- No database schema migration and no data wipe.
+
 # Aviary Pro 1.4.13+22 — Interaction & experimental layout customization
 
 - Rebuilt Create Pair selection as tappable Male/Female bird-card grids instead of dropdowns.

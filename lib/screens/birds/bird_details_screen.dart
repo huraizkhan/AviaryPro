@@ -667,6 +667,16 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
     );
   }
 
+  String _parentLocation(String prefix) {
+    final active = bird['${prefix}Active'] != 0;
+    final cage = bird['${prefix}CageIdentifier']?.toString().trim() ?? '';
+    if (active && cage.isNotEmpty) return aviaryCageLabel(cage);
+    final sold = bird['${prefix}SaleStatus']?.toString() == 'Sold';
+    final reason = bird['${prefix}RemovalReason']?.toString().trim() ?? '';
+    if (!active) return sold ? 'Sold' : (reason.isEmpty ? 'Removed' : reason);
+    return 'No cage';
+  }
+
   Widget _parentsRow() {
     final male = _birdLabel('parentMaleRingNumber', 'parentMaleName');
     final female = _birdLabel('parentFemaleRingNumber', 'parentFemaleName');
@@ -711,6 +721,23 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                 ),
             ],
           ),
+          if (male.isNotEmpty || female.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Builder(
+              builder: (context) {
+                final maleLocation = male.isEmpty ? '' : _parentLocation('parentMale');
+                final femaleLocation = female.isEmpty ? '' : _parentLocation('parentFemale');
+                final same = maleLocation.isNotEmpty && maleLocation == femaleLocation;
+                final text = same
+                    ? 'Parents cage: $maleLocation'
+                    : [
+                        if (maleLocation.isNotEmpty) 'Male: $maleLocation',
+                        if (femaleLocation.isNotEmpty) 'Female: $femaleLocation',
+                      ].join('  ·  ');
+                return Text(text, style: Theme.of(context).textTheme.bodySmall);
+              },
+            ),
+          ],
         ],
       ),
     );

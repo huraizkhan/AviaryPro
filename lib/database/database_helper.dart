@@ -2305,10 +2305,18 @@ class DatabaseHelper {
         parentMale.ringNumber AS parentMaleRingNumber,
         parentMale.name AS parentMaleName,
         parentMale.gender AS parentMaleGender,
+        parentMale.active AS parentMaleActive,
+        parentMale.removalReason AS parentMaleRemovalReason,
+        parentMale.saleStatus AS parentMaleSaleStatus,
+        parentMaleCage.identifier AS parentMaleCageIdentifier,
         parentFemale.id AS parentFemaleBirdId,
         parentFemale.ringNumber AS parentFemaleRingNumber,
         parentFemale.name AS parentFemaleName,
-        parentFemale.gender AS parentFemaleGender
+        parentFemale.gender AS parentFemaleGender,
+        parentFemale.active AS parentFemaleActive,
+        parentFemale.removalReason AS parentFemaleRemovalReason,
+        parentFemale.saleStatus AS parentFemaleSaleStatus,
+        parentFemaleCage.identifier AS parentFemaleCageIdentifier
       FROM birds b
       LEFT JOIN species s ON s.id = b.speciesId
       LEFT JOIN cages c ON c.id = b.cageId
@@ -2322,7 +2330,9 @@ class DatabaseHelper {
         END
       LEFT JOIN pairs parentPair ON parentPair.id = b.parentPairId
       LEFT JOIN birds parentMale ON parentMale.id = parentPair.maleBirdId
+      LEFT JOIN cages parentMaleCage ON parentMaleCage.id = parentMale.cageId
       LEFT JOIN birds parentFemale ON parentFemale.id = parentPair.femaleBirdId
+      LEFT JOIN cages parentFemaleCage ON parentFemaleCage.id = parentFemale.cageId
       $whereClause
       ORDER BY LENGTH(b.ringNumber), b.ringNumber COLLATE NOCASE ASC
       ''',
@@ -4127,6 +4137,7 @@ class DatabaseHelper {
         cage.id AS cageId,
         cage.identifier AS cageIdentifier,
         species.name AS speciesName,
+        COUNT(DISTINCT clutch.id) AS totalClutchCount,
         COUNT(DISTINCT CASE
           WHEN clutch.status = 'Active' THEN clutch.id
         END) AS activeClutchCount,
@@ -4153,6 +4164,12 @@ class DatabaseHelper {
           WHEN clutch.status = 'Active'
             AND egg.status = 'Hatched' THEN egg.id
         END) AS hatchedEggCount,
+        COUNT(DISTINCT CASE
+          WHEN clutch.status = 'Active' THEN egg.id
+        END) AS currentEggCount,
+        MAX(CASE
+          WHEN clutch.status = 'Active' THEN egg.laidDate
+        END) AS latestEggDate,
         MIN(CASE
           WHEN clutch.status = 'Active'
             AND egg.status IN ('Incubating', 'Fertile')
@@ -4232,6 +4249,7 @@ class DatabaseHelper {
         COUNT(DISTINCT CASE
           WHEN currentEgg.clutchId != clutch.id THEN currentEgg.id
         END) AS fosteredEggs,
+        MAX(originalEgg.laidDate) AS latestEggDate,
         MIN(CASE
           WHEN currentEgg.status IN ('Incubating', 'Fertile')
           THEN currentEgg.expectedHatchDate
@@ -4721,12 +4739,15 @@ class DatabaseHelper {
         species.name AS speciesName,
         cage.identifier AS cageIdentifier,
         parentPair.identifier AS biologicalPairIdentifier,
+        biologicalCage.identifier AS biologicalCageIdentifier,
         currentClutch.clutchNumber AS currentClutchNumber,
         currentPair.identifier AS currentPairIdentifier
       FROM birds bird
       LEFT JOIN species species ON species.id = bird.speciesId
       LEFT JOIN cages cage ON cage.id = bird.cageId
       LEFT JOIN pairs parentPair ON parentPair.id = bird.parentPairId
+      LEFT JOIN birds biologicalMale ON biologicalMale.id = parentPair.maleBirdId
+      LEFT JOIN cages biologicalCage ON biologicalCage.id = biologicalMale.cageId
       LEFT JOIN clutches currentClutch ON currentClutch.id = bird.nestClutchId
       LEFT JOIN pairs currentPair ON currentPair.id = currentClutch.pairId
       WHERE bird.nestClutchId = ?

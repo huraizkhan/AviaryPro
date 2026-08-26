@@ -32,6 +32,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
   Set<String> ageFilters = <String>{};
 
   String countMode = 'Mutation';
+  bool _countExpanded = false;
 
   bool selectionMode = false;
   final Set<String> selectedBirdIds = <String>{};
@@ -535,16 +536,42 @@ class _BirdsScreenState extends State<BirdsScreen> {
               ],
             ),
             const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: entries
-                  .map((entry) => FilterChip(
-                        selected: _countPillSelected(entry.key),
-                        label: Text('${_countDisplay(entry.key)} ${entry.value}'),
-                        onSelected: (_) => _applyCountPill(entry.key),
-                      ))
-                  .toList(),
+            Builder(
+              builder: (context) {
+                final selectedKeys = entries
+                    .where((entry) => _countPillSelected(entry.key))
+                    .map((entry) => entry.key)
+                    .toSet();
+                final shown = _countExpanded
+                    ? entries
+                    : entries
+                        .where((entry) => selectedKeys.contains(entry.key))
+                        .followedBy(entries.where((entry) => !selectedKeys.contains(entry.key)))
+                        .take(4)
+                        .toList();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: shown
+                          .map((entry) => FilterChip(
+                                selected: _countPillSelected(entry.key),
+                                label: Text('${_countDisplay(entry.key)} ${entry.value}'),
+                                onSelected: (_) => _applyCountPill(entry.key),
+                              ))
+                          .toList(),
+                    ),
+                    if (entries.length > 4)
+                      TextButton.icon(
+                        onPressed: () => setState(() => _countExpanded = !_countExpanded),
+                        icon: Icon(_countExpanded ? Icons.expand_less : Icons.expand_more),
+                        label: Text(_countExpanded ? 'Show less' : 'Show ${entries.length - shown.length} more'),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -648,6 +675,114 @@ class _BirdsScreenState extends State<BirdsScreen> {
     );
   }
 
+  String _shortDate(dynamic value) {
+    final parsed = DateTime.tryParse(value?.toString() ?? '');
+    if (parsed == null) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${parsed.day.toString().padLeft(2, '0')}-${months[parsed.month - 1]}-${(parsed.year % 100).toString().padLeft(2, '0')}';
+  }
+
+  String _parentCardLocation(Map<String, dynamic> bird) {
+    String location(String prefix) {
+      final active = bird['${prefix}Active'] != 0;
+      final cage = bird['${prefix}CageIdentifier']?.toString().trim() ?? '';
+      if (active && cage.isNotEmpty) return aviaryCageLabel(cage);
+      final sold = bird['${prefix}SaleStatus']?.toString() == 'Sold';
+      final reason = bird['${prefix}RemovalReason']?.toString().trim() ?? '';
+      if (!active) return sold ? 'Sold' : (reason.isEmpty ? 'Removed' : reason);
+      return 'No cage';
+    }
+    final maleId = bird['parentMaleBirdId']?.toString() ?? '';
+    final femaleId = bird['parentFemaleBirdId']?.toString() ?? '';
+    if (maleId.isEmpty && femaleId.isEmpty) return '';
+    final male = maleId.isEmpty ? '' : location('parentMale');
+    final female = femaleId.isEmpty ? '' : location('parentFemale');
+    if (male.isNotEmpty && male == female) return 'Parents $male';
+    return [if (male.isNotEmpty) 'M $male', if (female.isNotEmpty) 'F $female'].join(' · ');
+  }
+
+  String _birdCardFieldValue(Map<String, dynamic> bird, String id) {
+    final mutation = bird['mutation']?.toString().trim() ?? '';
+    final cage = bird['cageIdentifier']?.toString().trim() ?? '';
+    final mateRing = bird['partnerRingNumber']?.toString().trim() ?? '';
+    final mateName = bird['partnerName']?.toString().trim() ?? '';
+    final male = _birdLabelFromMap(bird, 'parentMaleRingNumber', 'parentMaleName');
+    final female = _birdLabelFromMap(bird, 'parentFemaleRingNumber', 'parentFemaleName');
+    return switch (id) {
+      'cage' => cage.isEmpty ? 'No cage' : aviaryCageLabel(cage),
+      'species' => bird['speciesName']?.toString().trim() ?? '',
+      'mutation' => mutation.isEmpty ? 'No mutation' : mutation,
+      'age' => _ageGroup(bird),
+      'pair' => bird['pairId'] == null ? 'Unpaired' : 'Paired',
+      'saleStatus' => bird['saleStatus']?.toString().trim() ?? '',
+      'gender' => bird['gender']?.toString().trim() ?? 'Unknown',
+      'eyeColor' => (bird['eyeColor']?.toString().trim().isNotEmpty ?? false) ? '${bird['eyeColor']} eyes' : '',
+      'downColor' => (bird['downColor']?.toString().trim().isNotEmpty ?? false) ? '${bird['downColor']} down' : '',
+      'mate' => mateRing.isEmpty && mateName.isEmpty ? '' : 'Mate ${mateName.isEmpty ? mateRing : mateName}',
+      'parents' => [male, female].where((value) => value.isNotEmpty).join(' × '),
+      'parentCages' => _parentCardLocation(bird),
+      'source' => bird['source']?.toString().trim() ?? '',
+      'hatchDate' => _shortDate(bird['hatchDate']),
+      'sourceDate' => _shortDate(bird['sourceDate']),
+      'nest' => bird['nestClutchId'] == null ? '' : 'In nest',
+      'notes' => (bird['notes']?.toString().trim().isNotEmpty ?? false) ? 'Notes' : '',
+      _ => '',
+    };
+  }
+
+  String _birdLabelFromMap(Map<String, dynamic> bird, String ringKey, String nameKey) {
+    final ring = bird[ringKey]?.toString().trim() ?? '';
+    final name = bird[nameKey]?.toString().trim() ?? '';
+    if (ring.isEmpty) return name;
+    return name.isEmpty ? ring : '$ring ($name)';
+  }
+
+  IconData _birdFieldIcon(String id) => switch (id) {
+        'cage' => Icons.home_work_outlined,
+        'species' => Icons.pets_outlined,
+        'mutation' => Icons.palette_outlined,
+        'age' => Icons.cake_outlined,
+        'pair' => Icons.favorite_outline,
+        'saleStatus' => Icons.sell_outlined,
+        'gender' => Icons.wc_outlined,
+        'eyeColor' => Icons.visibility_outlined,
+        'downColor' => Icons.brush_outlined,
+        'mate' => Icons.favorite_border,
+        'parents' => Icons.account_tree_outlined,
+        'parentCages' => Icons.home_outlined,
+        'source' => Icons.info_outline,
+        'hatchDate' => Icons.egg_outlined,
+        'sourceDate' => Icons.event_outlined,
+        'nest' => Icons.home_outlined,
+        'notes' => Icons.notes_outlined,
+        _ => Icons.label_outline,
+      };
+
+  Widget _birdCardField(Map<String, dynamic> bird, String id, String style) {
+    final value = _birdCardFieldValue(bird, id);
+    if (value.isEmpty) return const SizedBox.shrink();
+    if (style == 'text') {
+      return Padding(
+        padding: const EdgeInsets.only(right: 9, bottom: 4),
+        child: Text(value, style: Theme.of(context).textTheme.bodySmall),
+      );
+    }
+    if (style == 'icon') {
+      return Padding(
+        padding: const EdgeInsets.only(right: 7, bottom: 4),
+        child: Tooltip(message: value, child: Icon(_birdFieldIcon(id), size: 18)),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(right: 5, bottom: 4),
+      child: Chip(
+        avatar: Icon(_birdFieldIcon(id), size: 14),
+        label: Text(value),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
   Widget _buildBirds(List<Map<String, dynamic>> birdList) {
     if (birdList.isEmpty) {
       return const Padding(
@@ -696,32 +831,16 @@ class _BirdsScreenState extends State<BirdsScreen> {
               ),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 5),
-                child: Wrap(
-                  spacing: 5,
-                  runSpacing: 5,
-                  children: [
-                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('species'))
-                      Chip(label: Text(species), visualDensity: VisualDensity.compact),
-                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('mutation') &&
-                        (bird['mutation']?.toString().trim() ?? '').isNotEmpty)
-                      Chip(
-                        label: Text(bird['mutation'].toString()),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('age'))
-                      Chip(label: Text(_ageGroup(bird)), visualDensity: VisualDensity.compact),
-                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('cage'))
-                      Chip(label: Text(aviaryCageLabel(cage)), visualDensity: VisualDensity.compact),
-                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('pair') &&
-                        bird['pairId'] != null)
-                      const Chip(label: Text('Paired'), visualDensity: VisualDensity.compact),
-                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('eyeColor') &&
-                        (bird['eyeColor']?.toString().trim() ?? '').isNotEmpty)
-                      Chip(
-                        label: Text('${bird['eyeColor']} eyes'),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                  ],
+                child: Builder(
+                  builder: (context) {
+                    final prefs = context.watch<CardCustomizationProvider>();
+                    return Wrap(
+                      children: prefs.birdFieldOrder
+                          .where((id) => prefs.birdFieldStyle(id) != 'hidden')
+                          .map((id) => _birdCardField(bird, id, prefs.birdFieldStyle(id)))
+                          .toList(),
+                    );
+                  },
                 ),
               ),
               trailing: selectionMode

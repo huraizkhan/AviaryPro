@@ -9,28 +9,67 @@ class CardCustomizationProvider extends ChangeNotifier {
     'finance': ['month', 'year', 'feed'],
   };
 
-  static const List<String> _defaultBirdFields = [
+  static const List<String> birdFieldIds = [
+    'cage',
     'species',
     'mutation',
     'age',
-    'cage',
     'pair',
+    'saleStatus',
+    'gender',
     'eyeColor',
+    'downColor',
+    'mate',
+    'parents',
+    'parentCages',
+    'source',
+    'hatchDate',
+    'sourceDate',
+    'nest',
+    'notes',
   ];
+
+  static const Map<String, String> _defaultBirdStyles = {
+    'cage': 'pill',
+    'species': 'pill',
+    'mutation': 'pill',
+    'age': 'pill',
+    'pair': 'pill',
+    'saleStatus': 'hidden',
+    'gender': 'hidden',
+    'eyeColor': 'hidden',
+    'downColor': 'hidden',
+    'mate': 'hidden',
+    'parents': 'hidden',
+    'parentCages': 'hidden',
+    'source': 'hidden',
+    'hatchDate': 'hidden',
+    'sourceDate': 'hidden',
+    'nest': 'hidden',
+    'notes': 'hidden',
+  };
 
   final Map<String, List<String>> _orders = {};
   final Map<String, Set<String>> _hidden = {};
-  Set<String> _birdFields = {..._defaultBirdFields};
+  List<String> _birdFieldOrder = List<String>.from(birdFieldIds);
+  final Map<String, String> _birdFieldStyles = {..._defaultBirdStyles};
   bool loaded = false;
 
   List<String> orderFor(String screen) =>
       List.unmodifiable(_orders[screen] ?? _defaults[screen] ?? const []);
 
-  bool isVisible(String screen, String id) => !(_hidden[screen]?.contains(id) ?? false);
+  bool isVisible(String screen, String id) =>
+      !(_hidden[screen]?.contains(id) ?? false);
 
-  bool birdFieldVisible(String id) => _birdFields.contains(id);
+  List<String> get birdFieldOrder => List.unmodifiable(_birdFieldOrder);
 
-  Set<String> get birdFields => Set.unmodifiable(_birdFields);
+  String birdFieldStyle(String id) => _birdFieldStyles[id] ?? 'hidden';
+
+  bool birdFieldVisible(String id) => birdFieldStyle(id) != 'hidden';
+
+  Set<String> get birdFields => _birdFieldOrder
+      .where((id) => birdFieldVisible(id))
+      .toSet();
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -38,9 +77,7 @@ class CardCustomizationProvider extends ChangeNotifier {
       final savedOrder = prefs.getStringList('card_order_${entry.key}');
       final known = entry.value.toSet();
       final order = <String>[];
-      if (savedOrder != null) {
-        order.addAll(savedOrder.where(known.contains));
-      }
+      if (savedOrder != null) order.addAll(savedOrder.where(known.contains));
       order.addAll(entry.value.where((id) => !order.contains(id)));
       _orders[entry.key] = order;
       _hidden[entry.key] =
@@ -48,11 +85,34 @@ class CardCustomizationProvider extends ChangeNotifier {
               .where(known.contains)
               .toSet();
     }
-    final savedFields = prefs.getStringList('bird_card_fields');
-    if (savedFields != null) {
-      final knownFields = _defaultBirdFields.toSet();
-      _birdFields = savedFields.where(knownFields.contains).toSet();
+
+    final savedOrder = prefs.getStringList('bird_card_field_order');
+    if (savedOrder != null) {
+      final known = birdFieldIds.toSet();
+      _birdFieldOrder = savedOrder.where(known.contains).toList();
+      _birdFieldOrder.addAll(
+        birdFieldIds.where((id) => !_birdFieldOrder.contains(id)),
+      );
     }
+
+    for (final id in birdFieldIds) {
+      final savedStyle = prefs.getString('bird_card_style_$id');
+      if (const {'pill', 'text', 'icon', 'hidden'}.contains(savedStyle)) {
+        _birdFieldStyles[id] = savedStyle!;
+      }
+    }
+
+    // Migrate the first experimental show/hide preference if it exists.
+    final oldFields = prefs.getStringList('bird_card_fields');
+    if (oldFields != null &&
+        !birdFieldIds.any((id) => prefs.containsKey('bird_card_style_$id'))) {
+      for (final id in birdFieldIds) {
+        _birdFieldStyles[id] = oldFields.contains(id)
+            ? (_defaultBirdStyles[id] == 'hidden' ? 'pill' : _defaultBirdStyles[id]!)
+            : 'hidden';
+      }
+    }
+
     loaded = true;
     notifyListeners();
   }
@@ -79,15 +139,30 @@ class CardCustomizationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setBirdFieldVisible(String id, bool visible) async {
-    if (visible) {
-      _birdFields.add(id);
-    } else {
-      _birdFields.remove(id);
-    }
+  Future<void> reorderBirdField(int oldIndex, int newIndex) async {
+    final item = _birdFieldOrder.removeAt(oldIndex);
+    _birdFieldOrder.insert(newIndex, item);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('bird_card_fields', _birdFields.toList());
+    await prefs.setStringList('bird_card_field_order', _birdFieldOrder);
     notifyListeners();
+  }
+
+  Future<void> setBirdFieldStyle(String id, String style) async {
+    if (!birdFieldIds.contains(id) ||
+        !const {'pill', 'text', 'icon', 'hidden'}.contains(style)) {
+      return;
+    }
+    _birdFieldStyles[id] = style;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('bird_card_style_$id', style);
+    notifyListeners();
+  }
+
+  Future<void> setBirdFieldVisible(String id, bool visible) async {
+    await setBirdFieldStyle(
+      id,
+      visible ? (_defaultBirdStyles[id] == 'hidden' ? 'pill' : _defaultBirdStyles[id]!) : 'hidden',
+    );
   }
 
   Future<void> resetScreen(String screen) async {
@@ -98,9 +173,15 @@ class CardCustomizationProvider extends ChangeNotifier {
   }
 
   Future<void> resetBirdFields() async {
-    _birdFields = {..._defaultBirdFields};
+    _birdFieldOrder = List<String>.from(birdFieldIds);
+    _birdFieldStyles
+      ..clear()
+      ..addAll(_defaultBirdStyles);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('bird_card_fields', _birdFields.toList());
+    await prefs.setStringList('bird_card_field_order', _birdFieldOrder);
+    for (final id in birdFieldIds) {
+      await prefs.setString('bird_card_style_$id', _birdFieldStyles[id]!);
+    }
     notifyListeners();
   }
 
