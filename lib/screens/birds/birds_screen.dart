@@ -134,7 +134,6 @@ class _BirdsScreenState extends State<BirdsScreen> {
   }
 
   bool _matchesFilters(Map<String, dynamic> bird) {
-    final species = bird['speciesName']?.toString().trim() ?? '';
     final name = bird['name']?.toString().trim() ?? '';
     final gender = bird['gender']?.toString() ?? 'Unknown';
     final mutation = bird['mutation']?.toString().trim() ?? '';
@@ -197,7 +196,6 @@ class _BirdsScreenState extends State<BirdsScreen> {
       mutationFilters = result.mutations;
       ageFilters = result.ages;
       final visibleIds = birds.where((bird) {
-        final species = bird['speciesName']?.toString().trim() ?? '';
         final name = bird['name']?.toString().trim() ?? '';
         final gender = bird['gender']?.toString() ?? 'Unknown';
         final mutation = bird['mutation']?.toString().trim() ?? '';
@@ -685,7 +683,6 @@ class _BirdsScreenState extends State<BirdsScreen> {
   String _parentCardLocation(Map<String, dynamic> bird) {
     String location(String prefix) {
       final active = bird['${prefix}Active'] != 0;
-      final cage = bird['${prefix}CageIdentifier']?.toString().trim() ?? '';
       if (active && cage.isNotEmpty) return aviaryCageLabel(cage);
       final sold = bird['${prefix}SaleStatus']?.toString() == 'Sold';
       final reason = bird['${prefix}RemovalReason']?.toString().trim() ?? '';
@@ -703,7 +700,6 @@ class _BirdsScreenState extends State<BirdsScreen> {
 
   String _birdCardFieldValue(Map<String, dynamic> bird, String id) {
     final mutation = bird['mutation']?.toString().trim() ?? '';
-    final cage = bird['cageIdentifier']?.toString().trim() ?? '';
     final mateRing = bird['partnerRingNumber']?.toString().trim() ?? '';
     final mateName = bird['partnerName']?.toString().trim() ?? '';
     final male = _birdLabelFromMap(bird, 'parentMaleRingNumber', 'parentMaleName');
@@ -794,9 +790,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
       children: birdList.map((bird) {
         final ring = bird['ringNumber']?.toString() ?? 'No ring';
         final name = bird['name']?.toString().trim() ?? '';
-        final species = bird['speciesName']?.toString() ?? 'No species';
         final gender = bird['gender']?.toString() ?? 'Unknown';
-        final cage = bird['cageIdentifier']?.toString() ?? 'No cage';
         final selected = selectedBirdIds.contains(bird['id'].toString());
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
