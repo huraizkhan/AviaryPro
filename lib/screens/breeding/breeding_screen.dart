@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../database/database_helper.dart';
 import '../../ui/aviary_design.dart';
+import 'package:provider/provider.dart';
+import '../../providers/card_customization_provider.dart';
 import 'pair_details_screen.dart';
-import 'select_cage_for_pair_screen.dart';
 
 enum BreedingView { allPairs, activeBreeding }
 
@@ -42,48 +43,84 @@ class _BreedingScreenState extends State<BreedingScreen> {
     });
   }
 
-  Future<void> _createPair() async {
-    final changed = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const SelectCageForPairScreen(),
-      ),
-    );
-    if (!mounted || changed != true) return;
-    await _load();
-  }
 
   Widget _statCard(
     String label,
     int value,
     AviaryIconType icon,
-    Color color,
   ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .12),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          children: [
-            AviaryIcon(icon, color: color),
-            const SizedBox(height: 5),
-            Text(
-              '$value',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.primary.withValues(alpha: .20)),
       ),
+      child: Column(
+        children: [
+          AviaryIcon(icon, color: scheme.primary),
+          const SizedBox(height: 5),
+          Text(
+            '$value',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: scheme.onPrimaryContainer,
+                ),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onPrimaryContainer,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryGrid() {
+    final prefs = context.watch<CardCustomizationProvider>();
+    final cards = <String, Widget>{
+      'allPairs': _statCard(
+        'All Pairs',
+        summary['allPairs'] ?? 0,
+        AviaryIconType.pair,
+      ),
+      'activePairs': _statCard(
+        'Active Breeding Pairs',
+        summary['activePairs'] ?? 0,
+        AviaryIconType.pair,
+      ),
+      'eggs': _statCard(
+        'Eggs',
+        summary['totalEggs'] ?? 0,
+        AviaryIconType.egg,
+      ),
+      'chicks': _statCard(
+        'Chicks In Nest',
+        summary['chicksInNest'] ?? 0,
+        AviaryIconType.chick,
+      ),
+    };
+    final visible = prefs
+        .orderFor('breeding')
+        .where((id) => prefs.isVisible('breeding', id) && cards.containsKey(id))
+        .toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 10.0;
+        final itemWidth = (constraints.maxWidth - gap) / 2;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: visible
+              .map((id) => SizedBox(width: itemWidth, child: cards[id]!))
+              .toList(),
+        );
+      },
     );
   }
 
@@ -166,41 +203,7 @@ class _BreedingScreenState extends State<BreedingScreen> {
           100,
         ),
         children: [
-          Row(
-            children: [
-              _statCard(
-                'All Pairs',
-                summary['allPairs'] ?? 0,
-                AviaryIconType.pair,
-                AviaryColors.breeding,
-              ),
-              const SizedBox(width: 10),
-              _statCard(
-                'Active Breeding Pairs',
-                summary['activePairs'] ?? 0,
-                AviaryIconType.pair,
-                const Color(0xFFD45B8C),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _statCard(
-                'Eggs',
-                summary['totalEggs'] ?? 0,
-                AviaryIconType.egg,
-                AviaryColors.breeding,
-              ),
-              const SizedBox(width: 10),
-              _statCard(
-                'Chicks In Nest',
-                summary['chicksInNest'] ?? 0,
-                AviaryIconType.chick,
-                AviaryColors.birds,
-              ),
-            ],
-          ),
+          _summaryGrid(),
           const SizedBox(height: 14),
           AviarySegmentedControl<BreedingView>(
             items: const [
@@ -213,15 +216,6 @@ class _BreedingScreenState extends State<BreedingScreen> {
               setState(() => view = value);
               _load();
             },
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _createPair,
-            icon: const AviaryIcon(
-              AviaryIconType.pair,
-              color: Colors.white,
-            ),
-            label: const Text('CREATE PAIR'),
           ),
           const SizedBox(height: 12),
           if (loading)
@@ -243,7 +237,6 @@ class _BreedingScreenState extends State<BreedingScreen> {
           else
             ...pairs.map((pair) {
               final cage = pair['cageIdentifier']?.toString() ?? 'No cage';
-              final pairId = pair['identifier']?.toString() ?? 'Pair';
               final species = pair['speciesName']?.toString() ?? 'Unknown species';
               final activeEggs =
                   (pair['activeEggCount'] as num?)?.toInt() ?? 0;
@@ -320,7 +313,7 @@ class _BreedingScreenState extends State<BreedingScreen> {
                               const SizedBox(width: 11),
                               Expanded(
                                 child: Text(
-                                  '$cage — $pairId · $species',
+                                  '$cage · $species',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 16,

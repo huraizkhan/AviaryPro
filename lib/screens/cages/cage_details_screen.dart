@@ -8,7 +8,6 @@ import '../birds/add_bird_screen.dart';
 import '../birds/bird_details_screen.dart';
 import '../breeding/pair_details_screen.dart';
 import 'assign_bird_screen.dart';
-import 'create_pair_screen.dart';
 import 'edit_cage_screen.dart';
 import '../../widgets/aviary_date_picker.dart';
 
@@ -635,36 +634,10 @@ class _CageDetailsScreenState extends State<CageDetailsScreen> {
                   }),
                 ],
                 const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: busy ? null : _addBird,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Bird'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: busy
-                            ? null
-                            : () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CreatePairScreen(
-                                      cageId: widget.cageId,
-                                    ),
-                                  ),
-                                );
-                                if (result == true) await _loadCageDetails();
-                              },
-                        icon: const Icon(Icons.favorite),
-                        label: const Text('Create Pair'),
-                      ),
-                    ),
-                  ],
+                FilledButton.icon(
+                  onPressed: busy ? null : _addBird,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Bird'),
                 ),
                 if (canMerge || isEmpty) ...[
                   const SizedBox(height: 10),

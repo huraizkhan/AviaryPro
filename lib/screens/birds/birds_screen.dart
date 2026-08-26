@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../database/database_helper.dart';
 import '../../providers/bird_provider.dart';
+import '../../providers/card_customization_provider.dart';
 import '../../ui/aviary_design.dart';
 import '../cages/cage_details_screen.dart';
 import 'add_bird_screen.dart';
@@ -334,7 +335,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AviaryColors.birds.withValues(alpha: .12),
+        color: Theme.of(context).colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -345,7 +346,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
             child: const AviaryIcon(
               AviaryIconType.bird,
               size: 30,
-              color: AviaryColors.birds,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(width: 14),
@@ -463,24 +464,27 @@ class _BirdsScreenState extends State<BirdsScreen> {
   }
 
   void _applyCountPill(String value) {
+    final wasSelected = _countPillSelected(value);
     setState(() {
       speciesFilters.clear();
       nameFilters.clear();
       genderFilters.clear();
       mutationFilters.clear();
       ageFilters.clear();
-      switch (countMode) {
-        case 'Species':
-          speciesFilters.add(value);
-          break;
-        case 'Name':
-          nameFilters.add(value);
-          break;
-        case 'Gender':
-          genderFilters.add(value);
-          break;
-        default:
-          mutationFilters.add(value);
+      if (!wasSelected) {
+        switch (countMode) {
+          case 'Species':
+            speciesFilters.add(value);
+            break;
+          case 'Name':
+            nameFilters.add(value);
+            break;
+          case 'Gender':
+            genderFilters.add(value);
+            break;
+          default:
+            mutationFilters.add(value);
+        }
       }
       selectionMode = false;
       selectedBirdIds.clear();
@@ -502,6 +506,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
             .compareTo(_countDisplay(b.key).toLowerCase());
       });
     return Card(
+      color: Theme.of(context).colorScheme.primaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -667,7 +672,9 @@ class _BirdsScreenState extends State<BirdsScreen> {
             child: ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              onLongPress: () => _toggleSelection(bird),
+              onLongPress: selectionMode
+                  ? () => _toggleSelection(bird)
+                  : () => _editBird(context, bird),
               onTap: selectionMode
                   ? () => _toggleSelection(bird)
                   : () => _openDetails(context, bird),
@@ -693,17 +700,23 @@ class _BirdsScreenState extends State<BirdsScreen> {
                   spacing: 5,
                   runSpacing: 5,
                   children: [
-                    Chip(label: Text(species), visualDensity: VisualDensity.compact),
-                    if ((bird['mutation']?.toString().trim() ?? '').isNotEmpty)
+                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('species'))
+                      Chip(label: Text(species), visualDensity: VisualDensity.compact),
+                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('mutation') &&
+                        (bird['mutation']?.toString().trim() ?? '').isNotEmpty)
                       Chip(
                         label: Text(bird['mutation'].toString()),
                         visualDensity: VisualDensity.compact,
                       ),
-                    Chip(label: Text(_ageGroup(bird)), visualDensity: VisualDensity.compact),
-                    Chip(label: Text(aviaryCageLabel(cage)), visualDensity: VisualDensity.compact),
-                    if (bird['pairId'] != null)
+                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('age'))
+                      Chip(label: Text(_ageGroup(bird)), visualDensity: VisualDensity.compact),
+                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('cage'))
+                      Chip(label: Text(aviaryCageLabel(cage)), visualDensity: VisualDensity.compact),
+                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('pair') &&
+                        bird['pairId'] != null)
                       const Chip(label: Text('Paired'), visualDensity: VisualDensity.compact),
-                    if ((bird['eyeColor']?.toString().trim() ?? '').isNotEmpty)
+                    if (context.watch<CardCustomizationProvider>().birdFieldVisible('eyeColor') &&
+                        (bird['eyeColor']?.toString().trim() ?? '').isNotEmpty)
                       Chip(
                         label: Text('${bird['eyeColor']} eyes'),
                         visualDensity: VisualDensity.compact,
@@ -760,8 +773,21 @@ class _BirdsScreenState extends State<BirdsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
         children: [
-          _summaryHeader(),
-          const SizedBox(height: 12),
+          ...context
+              .watch<CardCustomizationProvider>()
+              .orderFor('birds')
+              .where((id) => context
+                  .watch<CardCustomizationProvider>()
+                  .isVisible('birds', id))
+              .expand((id) sync* {
+            if (id == 'summary') {
+              yield _summaryHeader();
+              yield const SizedBox(height: 12);
+            } else if (id == 'automaticCount' && view == BirdListView.allBirds) {
+              yield _countSummary(allBirds);
+              yield const SizedBox(height: 12);
+            }
+          }),
           AviarySegmentedControl<BirdListView>(
             items: const [
               (BirdListView.byCage, 'By Cage'),
@@ -775,8 +801,6 @@ class _BirdsScreenState extends State<BirdsScreen> {
           if (view == BirdListView.byCage)
             _buildCages()
           else ...[
-            _countSummary(allBirds),
-            const SizedBox(height: 10),
             _filterAndCountBar(allBirds, visibleBirds),
             const SizedBox(height: 10),
             _buildBirds(visibleBirds),
@@ -850,7 +874,7 @@ class _BirdFilterScreenState extends State<_BirdFilterScreen> {
         'Age Group' => widget.ageGroupFor(bird),
         _ => '',
       };
-      if (value.isNotEmpty) values.add(value);
+      if (value.isNotEmpty || category == 'Mutation') values.add(value);
     }
     final result = values.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return result;
@@ -937,7 +961,7 @@ class _BirdFilterScreenState extends State<_BirdFilterScreen> {
           return CheckboxListTile(
             value: selected.contains(option),
             title: Text(
-              option,
+              title == 'Mutation' && option.isEmpty ? 'No mutation' : option,
               style: TextStyle(
                 color: enabled
                     ? null

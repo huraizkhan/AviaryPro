@@ -1,3 +1,19 @@
+# Aviary Pro 1.4.13+22 — Interaction & experimental layout customization
+
+- Rebuilt Create Pair selection as tappable Male/Female bird-card grids instead of dropdowns.
+- Automatically preselects the only valid opposite-gender same-species pair in a cage.
+- Pair creation remains available from the global floating Add menu; removed duplicate Create Pair buttons from Breeding and Cage Details.
+- Removed visible Pair IDs from breeding-card titles; cage + species remain the primary identification.
+- Fixed All Birds automatic-count chips so tapping the selected chip again clears that filter.
+- Added No mutation as a real selectable Mutation filter.
+- Long-pressing a bird card now opens Edit Bird directly; bulk Select mode still supports multi-selection.
+- Moved Hatch to a direct action on each pending egg card; the overflow menu is reduced to Foster Egg and Change Status.
+- Added compact Change Egg Status sheet for Fertile, Infertile, Dead Embryo, Cracked, Missing, etc.
+- Unified Dashboard, Birds, Breeding and Finance top-card surfaces to the selected theme color.
+- Added Settings → Experimental Layout: reorder/hide main summary cards like tiles and choose which data fields appear on All Birds cards.
+- Experimental card preferences persist locally and can be reset per screen.
+- No destructive database migration or data reset.
+
 # Aviary Pro 1.4.12+21 — Dark-theme UI repair
 
 - Fixed unreadable pale card backgrounds and low-contrast text in Dark mode.

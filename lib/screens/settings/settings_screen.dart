@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../ui/aviary_design.dart';
 import '../backup/google_drive_backup_screen.dart';
+import 'card_customization_screen.dart';
 import '../cages/cages_screen.dart';
 import '../history/family_tree_screen.dart';
 import '../history/history_screen.dart';
@@ -83,6 +84,18 @@ class SettingsScreen extends StatelessWidget {
                   }).toList(),
                 ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _tile(
+          icon: Icons.dashboard_customize_outlined,
+          title: 'Experimental Layout',
+          subtitle: 'Reorder/hide summary cards and choose bird-card data',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const CardCustomizationScreen(),
             ),
           ),
         ),
@@ -196,7 +209,7 @@ class SettingsScreen extends StatelessWidget {
           child: ListTile(
             leading: AviaryIcon(AviaryIconType.bird),
             title: Text('Aviary Pro'),
-            subtitle: Text('v1.4.11+20 · Redesign foundation'),
+            subtitle: Text('v1.4.13+22 · Interaction & layout customization'),
           ),
         ),
       ],

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../database/database_helper.dart';
+import 'package:provider/provider.dart';
+import '../../providers/card_customization_provider.dart';
 import '../../ui/aviary_design.dart';
 import '../birds/bird_details_screen.dart';
 import '../birds/sale_list_screen.dart';
@@ -70,7 +72,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String label,
     required int value,
     required Widget icon,
-    required Color color,
     int? tab,
     VoidCallback? onTap,
   }) {
@@ -79,9 +80,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onTap: onTap ?? (tab == null ? null : () => widget.onNavigate(tab)),
       child: Ink(
         decoration: BoxDecoration(
-          color: color.withValues(alpha: .11),
+          color: Theme.of(context).colorScheme.primaryContainer,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: .18)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: .20),
+          ),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -94,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   CircleAvatar(
                     radius: compact ? 18 : 20,
-                    backgroundColor: Colors.white.withValues(alpha: .8),
+                    backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: .75),
                     child: icon,
                   ),
                   SizedBox(width: gap),
@@ -301,6 +304,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
+    final layout = context.watch<CardCustomizationProvider>();
+    final summaryCards = <String, Widget>{
+      'birds': _stat(
+        label: 'Current Birds',
+        value: _summary['birds'] ?? 0,
+        icon: AviaryIcon(
+          AviaryIconType.bird,
+          ),
+        tab: 1,
+      ),
+      'eggs': _stat(
+        label: 'Eggs',
+        value: _summary['eggs'] ?? 0,
+        icon: AviaryIcon(
+          AviaryIconType.egg,
+          ),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardEggPairsScreen()),
+          );
+          if (mounted) await _load();
+        },
+      ),
+      'pairs': _stat(
+        label: 'Active Pairs',
+        value: _summary['pairs'] ?? 0,
+        icon: AviaryIcon(
+          AviaryIconType.pair,
+          ),
+        tab: 2,
+      ),
+      'chicks': _stat(
+        label: 'Chicks',
+        value: _summary['chicks'] ?? 0,
+        icon: AviaryIcon(
+          AviaryIconType.chick,
+          ),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardChickCagesScreen()),
+          );
+          if (mounted) await _load();
+        },
+      ),
+    };
+    final visibleSummaryCards = layout
+        .orderFor('dashboard')
+        .where((id) => layout.isVisible('dashboard', id) && summaryCards.containsKey(id))
+        .map((id) => summaryCards[id]!)
+        .toList();
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -340,64 +396,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 childAspectRatio: itemWidth / targetHeight,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                children: [
-              _stat(
-                label: 'Current Birds',
-                value: _summary['birds'] ?? 0,
-                icon: const AviaryIcon(
-                  AviaryIconType.bird,
-                  color: AviaryColors.birds,
-                ),
-                color: AviaryColors.birds,
-                tab: 1,
-              ),
-              _stat(
-                label: 'Eggs',
-                value: _summary['eggs'] ?? 0,
-                icon: const AviaryIcon(
-                  AviaryIconType.egg,
-                  color: AviaryColors.dashboard,
-                ),
-                color: AviaryColors.dashboard,
-                onTap: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DashboardEggPairsScreen(),
-                    ),
-                  );
-                  if (mounted) await _load();
-                },
-              ),
-              _stat(
-                label: 'Active Pairs',
-                value: _summary['pairs'] ?? 0,
-                icon: const AviaryIcon(
-                  AviaryIconType.pair,
-                  color: AviaryColors.breeding,
-                ),
-                color: AviaryColors.breeding,
-                tab: 2,
-              ),
-              _stat(
-                label: 'Chicks',
-                value: _summary['chicks'] ?? 0,
-                icon: const AviaryIcon(
-                  AviaryIconType.chick,
-                  color: AviaryColors.finance,
-                ),
-                color: AviaryColors.finance,
-                onTap: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DashboardChickCagesScreen(),
-                    ),
-                  );
-                  if (mounted) await _load();
-                },
-              ),
-            ],
+                children: visibleSummaryCards,
               );
             },
           ),

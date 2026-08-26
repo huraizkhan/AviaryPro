@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../database/database_helper.dart';
+import 'package:provider/provider.dart';
+import '../../providers/card_customization_provider.dart';
 import '../../ui/aviary_design.dart';
 import 'add_transaction_screen.dart';
 
@@ -59,18 +61,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
     required double expense,
     required double balance,
   }) {
-    return Expanded(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      color: scheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const AviaryIcon(
+                  AviaryIcon(
                     AviaryIconType.finance,
-                    color: AviaryColors.finance,
+                    color: scheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -90,8 +93,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 balance >= 0 ? AviaryColors.finance : const Color(0xFFC85B37),
                 bold: true,
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -137,79 +139,102 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  Widget _feedTrendCard() {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      color: scheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.grass_outlined, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Feed Trend',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _feedStat(
+                    'This month',
+                    '${(feedAnalytics['monthKg'] ?? 0).toStringAsFixed(1)} kg',
+                  ),
+                ),
+                Expanded(
+                  child: _feedStat(
+                    '3-month avg',
+                    '${(feedAnalytics['rollingMonthlyKg'] ?? 0).toStringAsFixed(1)} kg/mo',
+                  ),
+                ),
+                Expanded(
+                  child: _feedStat(
+                    'Month cost',
+                    moneyFormat.format(feedAnalytics['monthCost'] ?? 0),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final layout = context.watch<CardCustomizationProvider>();
+    final cardMap = <String, Widget>{
+      'month': _periodCard(
+        title: 'This Month',
+        income: summary['monthIncome'] ?? 0,
+        expense: summary['monthExpense'] ?? 0,
+        balance: summary['monthBalance'] ?? 0,
+      ),
+      'year': _periodCard(
+        title: 'This Year',
+        income: summary['yearIncome'] ?? 0,
+        expense: summary['yearExpense'] ?? 0,
+        balance: summary['yearBalance'] ?? 0,
+      ),
+      'feed': _feedTrendCard(),
+    };
+    final visibleIds = layout
+        .orderFor('finance')
+        .where((id) => layout.isVisible('finance', id) && cardMap.containsKey(id))
+        .toList();
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _periodCard(
-                title: 'This Month',
-                income: summary['monthIncome'] ?? 0,
-                expense: summary['monthExpense'] ?? 0,
-                balance: summary['monthBalance'] ?? 0,
-              ),
-              const SizedBox(width: 10),
-              _periodCard(
-                title: 'This Year',
-                income: summary['yearIncome'] ?? 0,
-                expense: summary['yearExpense'] ?? 0,
-                balance: summary['yearBalance'] ?? 0,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Card(
-            color: aviaryCardSurface(
-              context,
-              tint: AviaryColors.breeding.withValues(alpha: .10),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.grass_outlined, color: AviaryColors.breeding),
-                      SizedBox(width: 8),
-                      Text('Feed Trend', style: TextStyle(fontWeight: FontWeight.w800)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _feedStat(
-                          'This month',
-                          '${(feedAnalytics['monthKg'] ?? 0).toStringAsFixed(1)} kg',
-                        ),
-                      ),
-                      Expanded(
-                        child: _feedStat(
-                          '3-month avg',
-                          '${(feedAnalytics['rollingMonthlyKg'] ?? 0).toStringAsFixed(1)} kg/mo',
-                        ),
-                      ),
-                      Expanded(
-                        child: _feedStat(
-                          'Month cost',
-                          moneyFormat.format(feedAnalytics['monthCost'] ?? 0),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 10.0;
+              final half = (constraints.maxWidth - gap) / 2;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: visibleIds.map((id) {
+                  final width = id == 'feed' ? constraints.maxWidth : half;
+                  return SizedBox(width: width, child: cardMap[id]!);
+                }).toList(),
+              );
+            },
           ),
           const SizedBox(height: 12),
           Row(

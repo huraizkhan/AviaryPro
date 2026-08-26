@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'app/app.dart';
 import 'providers/bird_provider.dart';
+import 'providers/card_customization_provider.dart';
 import 'providers/theme_provider.dart';
 
 void main() {
@@ -12,6 +13,9 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => BirdProvider()..loadBirds()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()..load()),
+        ChangeNotifierProvider(
+          create: (_) => CardCustomizationProvider()..load(),
+        ),
       ],
       child: const AviaryProApp(),
     ),

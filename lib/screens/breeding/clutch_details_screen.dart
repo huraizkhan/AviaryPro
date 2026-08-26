@@ -605,6 +605,42 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
     );
   }
 
+  Future<void> _showEggStatusPicker(Map<String, dynamic> egg) async {
+    final current = egg['status']?.toString() ?? 'Incubating';
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+          child: Wrap(
+            runSpacing: 6,
+            children: [
+              ListTile(
+                title: const Text(
+                  'Change egg status',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text('Current: $current'),
+              ),
+              ...eggStatuses
+                  .where((status) => status != current)
+                  .map(
+                    (status) => ListTile(
+                      leading: const Icon(Icons.egg_outlined),
+                      title: Text(status),
+                      onTap: () => Navigator.pop(sheetContext, status),
+                    ),
+                  ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    await _changeEggStatus(egg, selected);
+  }
+
   Widget _eggCard(Map<String, dynamic> egg) {
     final status = egg['status']?.toString() ?? 'Incubating';
     final fostered = egg['isFostered'] == 1;
@@ -629,37 +665,35 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
           '${(egg['notes']?.toString().trim() ?? '').isNotEmpty ? '\nNote: ${egg['notes']}' : ''}',
         ),
         isThreeLine: true,
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'hatch') {
-              _hatchEgg(egg);
-            } else if (value == 'foster') {
-              _fosterEgg(egg);
-            } else if (value.startsWith('status:')) {
-              _changeEggStatus(egg, value.substring(7));
-            }
-          },
-          itemBuilder: (_) => [
-            if (isPending)
-              const PopupMenuItem(
-                value: 'hatch',
-                child: Text('Hatch Egg'),
-              ),
-            if (isPending)
-              const PopupMenuItem(
-                value: 'foster',
-                child: Text('Foster Egg'),
-              ),
-            if (isPending) const PopupMenuDivider(),
-            if (isPending)
-              ...eggStatuses.map(
-                (item) => PopupMenuItem(
-                  value: 'status:$item',
-                  child: Text('Mark $item'),
-                ),
-              ),
-          ],
-        ),
+        trailing: isPending
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () => _hatchEgg(egg),
+                    icon: const AviaryIcon(AviaryIconType.chick, size: 18),
+                    label: const Text('Hatch'),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'More egg actions',
+                    onSelected: (value) {
+                      if (value == 'foster') _fosterEgg(egg);
+                      if (value == 'status') _showEggStatusPicker(egg);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'foster',
+                        child: Text('Foster Egg'),
+                      ),
+                      PopupMenuItem(
+                        value: 'status',
+                        child: Text('Change Status…'),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : null,
       ),
     );
   }

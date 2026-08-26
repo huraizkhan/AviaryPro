@@ -3510,8 +3510,10 @@ class DatabaseHelper {
 
     return db.rawQuery(
       '''
-      SELECT b.*
+      SELECT b.*, s.name AS speciesName, c.identifier AS cageIdentifier
       FROM birds b
+      LEFT JOIN species s ON s.id = b.speciesId
+      LEFT JOIN cages c ON c.id = b.cageId
       WHERE b.cageId = ?
         AND COALESCE(b.active, 1) = 1
         AND NOT EXISTS(
