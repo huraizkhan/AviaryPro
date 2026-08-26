@@ -169,7 +169,7 @@ class _SaleListScreenState extends State<SaleListScreen> {
                             onTap: () async {
                               final fresh = await DatabaseHelper.instance
                                   .getBirdById(bird['id'].toString());
-                              if (!mounted || fresh == null) return;
+                              if (!context.mounted || fresh == null) return;
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(

@@ -1216,7 +1216,8 @@ class DatabaseHelper {
     final where = excludeBirdId == null
         ? exactOrNumeric
         : '($exactOrNumeric) AND id != ?';
-    final args = <Object?>[clean, if (numeric != null) numeric];
+    final args = <Object?>[clean];
+    if (numeric != null) args.add(numeric);
     if (excludeBirdId != null) args.add(excludeBirdId);
 
     final result = await db.query(
@@ -6789,7 +6790,7 @@ class DatabaseHelper {
           txn,
           birdId: id,
           eventType: 'Purchased',
-          eventDate: purchaseDate!,
+          eventDate: purchaseDate,
           details: 'Purchased in a batch of ${birds.length} birds.',
         );
       }
@@ -6814,7 +6815,7 @@ class DatabaseHelper {
         txn,
         category: 'Finance',
         eventType: 'Expense',
-        eventDate: purchaseDate!,
+        eventDate: purchaseDate,
         title: 'Bird Purchase',
         details: financeNotes,
         entityType: 'Finance',

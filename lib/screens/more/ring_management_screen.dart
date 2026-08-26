@@ -148,7 +148,8 @@ class _RingManagementScreenState extends State<RingManagementScreen> {
 
   Color _ringColor(Map<String, dynamic> ring) {
     if ((ring['allotted'] as num?)?.toInt() != 1) return Colors.grey;
-    return birdGenderTextColor(ring['gender']?.toString());
+    return birdGenderTextColor(ring['gender']?.toString()) ??
+        Theme.of(context).colorScheme.onSurfaceVariant;
   }
 
   @override

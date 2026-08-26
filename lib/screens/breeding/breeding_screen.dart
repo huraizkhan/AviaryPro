@@ -114,30 +114,6 @@ class _BreedingScreenState extends State<BreedingScreen> {
     };
   }
 
-  Widget _birdRow(Map<String, dynamic> pair, String prefix) {
-    final gender = pair['${prefix}Gender']?.toString() ?? 'Unknown';
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            _birdLabel(pair, prefix),
-            style: TextStyle(
-              color: birdGenderTextColor(gender),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        Text(
-          gender,
-          style: TextStyle(
-            color: _genderColor(gender),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _countColumn(String label, int value) {
     return Expanded(
       child: Column(
