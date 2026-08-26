@@ -1,3 +1,19 @@
+# Aviary Pro 1.4.11+20 — Workflow redesign foundation
+
+- Added Sale Workspace with For Sale, Taken, Sold and Returned counts.
+- Added sale outings with reusable/removable locations, today-default editable dates, sell/return handling, and outing history.
+- Added factor-based sale pricing (Species / Mutation / Age Group), live zero-balance validation, group counts, bird drill-down and optional per-bird overrides.
+- Added Bird Value Calculator with saved single-price estimates by species, mutation and age group.
+- Added pair stage strip and one-tap provisional breeding observations: Suspected Egg, Chick Heard, Breeding Interest, No Interest and Problem.
+- Added eye-color and chick-down fields for birds.
+- Added scrollable + typeable Day / Month / Year date selector throughout the app; calendar popup is no longer used.
+- Added feed purchase quantity (kg) and feed purchase trend analytics.
+- Added Settings tab with System / Light / Dark modes and Classic, Olive, Ocean and Plum themes.
+- Added faster automatic edit-sync retry and silent Google session restoration; backup scheduling remains separate.
+- Made All Birds cards more scannable with compact species, mutation, age, cage, pair and eye-color badges.
+- Added Today at a Glance dashboard summary.
+- Database migration advances safely to v15 without wiping existing data.
+
 # Aviary Pro 1.4.10+19 — Management, history, rings and finance update
 
 - Added More → Ring Management with species-specific allowed ranges, allotted/available status, and gender-colored allotted rings.

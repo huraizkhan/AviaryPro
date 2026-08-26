@@ -171,6 +171,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _alerts = _alerts.where((item) => item != alert).toList());
   }
 
+  Widget _todayCard() {
+    final attention = _alerts.length;
+    final forSale = _summary['saleList'] ?? 0;
+    final taken = _summary['takenForSale'] ?? 0;
+    final observations = _summary['observations'] ?? 0;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SaleListScreen()),
+          );
+          if (mounted) await _load();
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.today_outlined),
+                  SizedBox(width: 8),
+                  Text('Today at a Glance', style: TextStyle(fontWeight: FontWeight.w800)),
+                  Spacer(),
+                  Icon(Icons.chevron_right),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  Chip(label: Text('$attention attention'), visualDensity: VisualDensity.compact),
+                  Chip(label: Text('$forSale for sale'), visualDensity: VisualDensity.compact),
+                  if (taken > 0)
+                    Chip(label: Text('$taken taken out'), visualDensity: VisualDensity.compact),
+                  if (observations > 0)
+                    Chip(label: Text('$observations unconfirmed'), visualDensity: VisualDensity.compact),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _financeCard() {
     final income = _finance['monthIncome'] ?? 0;
     final expense = _finance['monthExpense'] ?? 0;
@@ -349,25 +398,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             },
           ),
-          if ((_summary['saleList'] ?? 0) > 0) ...[
-            const SizedBox(height: 10),
-            _stat(
-              label: 'Recent Youngsters',
-              value: _summary['saleList'] ?? 0,
-              icon: const AviaryIcon(
-                AviaryIconType.bird,
-                color: AviaryColors.birds,
-              ),
-              color: AviaryColors.birds,
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SaleListScreen()),
-                );
-                if (mounted) await _load();
-              },
-            ),
-          ],
+          const SizedBox(height: 10),
+          _todayCard(),
           const SizedBox(height: 14),
           _financeCard(),
           const SizedBox(height: 18),

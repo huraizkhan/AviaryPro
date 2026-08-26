@@ -8,13 +8,18 @@ import '../cages/add_cage_screen.dart';
 import '../breeding/add_egg_screen.dart';
 import 'bird_sale_selection_screen.dart';
 import 'bulk_bird_purchase_screen.dart';
+import '../../widgets/aviary_date_picker.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final String initialType;
+  final List<Map<String, dynamic>> initialSaleBirds;
+  final String? saleOutingId;
 
   const AddTransactionScreen({
     super.key,
     required this.initialType,
+    this.initialSaleBirds = const [],
+    this.saleOutingId,
   });
 
   @override
@@ -24,6 +29,7 @@ class AddTransactionScreen extends StatefulWidget {
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final formKey = GlobalKey<FormState>();
   final amountController = TextEditingController();
+  final quantityController = TextEditingController();
   final notesController = TextEditingController();
   final buyerController = TextEditingController();
   final samePriceController = TextEditingController();
@@ -38,9 +44,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   List<Map<String, dynamic>> selectedSaleBirds = const [];
   List<Map<String, dynamic>> availableEggs = const [];
   Map<String, dynamic>? selectedEgg;
-  String salePricingMode = 'individual';
+  String salePricingMode = 'factors';
+  final Set<String> saleFactors = <String>{};
+  final Set<String> overriddenBirdIds = <String>{};
   final Map<String, TextEditingController> individualPriceControllers = {};
-  final Map<String, TextEditingController> mutationPriceControllers = {};
+  final Map<String, TextEditingController> groupPriceControllers = {};
 
   static const incomeCategories = <String>[
     'Bird Sale',
@@ -63,12 +71,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     super.initState();
     type = widget.initialType == 'Expense' ? 'Expense' : 'Income';
     category = type == 'Income' ? incomeCategories.first : expenseCategories.first;
+    if (widget.initialSaleBirds.isNotEmpty) {
+      type = 'Income';
+      category = 'Bird Sale';
+      selectedSaleBirds = List<Map<String, dynamic>>.from(widget.initialSaleBirds);
+      _prepareSaleControllers(selectedSaleBirds);
+    }
     _loadAvailableEggs();
   }
 
   @override
   void dispose() {
     amountController.dispose();
+    quantityController.dispose();
     notesController.dispose();
     buyerController.dispose();
     samePriceController.dispose();
@@ -76,7 +91,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     for (final controller in individualPriceControllers.values) {
       controller.dispose();
     }
-    for (final controller in mutationPriceControllers.values) {
+    for (final controller in groupPriceControllers.values) {
       controller.dispose();
     }
     super.dispose();
@@ -90,6 +105,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool get isBirdPurchase => type == 'Expense' && category == 'Bird Purchase';
   bool get isEggPurchase => type == 'Expense' && category == 'Egg Purchase';
   bool get isCagePurchase => type == 'Expense' && category == 'Cage';
+  bool get isFeedExpense => type == 'Expense' && category == 'Feed';
 
   Future<void> _loadAvailableEggs() async {
     final rows = await DatabaseHelper.instance.getAvailableEggsForSale();
@@ -154,7 +170,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showAviaryDatePicker(
       context: context,
       initialDate: date,
       firstDate: DateTime(2000),
@@ -164,7 +180,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     setState(() => date = picked);
   }
 
+  void _prepareSaleControllers(List<Map<String, dynamic>> birds) {
+    for (final bird in birds) {
+      individualPriceControllers.putIfAbsent(
+        bird['id'].toString(),
+        () => TextEditingController(),
+      );
+    }
+    for (final key in _saleGroups.keys) {
+      groupPriceControllers.putIfAbsent(key, () => TextEditingController());
+    }
+  }
+
   Future<void> _selectSaleBirds() async {
+    final eligible = widget.saleOutingId == null
+        ? null
+        : widget.initialSaleBirds.map((bird) => bird['id'].toString()).toSet();
     final result = await Navigator.push<List<Map<String, dynamic>>>(
       context,
       MaterialPageRoute(
@@ -172,48 +203,198 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           initialSelectedIds: selectedSaleBirds
               .map((bird) => bird['id'].toString())
               .toSet(),
+          eligibleBirdIds: eligible,
         ),
       ),
     );
     if (!mounted || result == null) return;
     setState(() {
       selectedSaleBirds = result;
-      for (final bird in result) {
-        individualPriceControllers.putIfAbsent(
-          bird['id'].toString(),
-          () => TextEditingController(),
-        );
-        mutationPriceControllers.putIfAbsent(
-          _mutationKey(bird),
-          () => TextEditingController(),
-        );
-      }
+      overriddenBirdIds.removeWhere(
+        (id) => !result.any((bird) => bird['id'].toString() == id),
+      );
+      _prepareSaleControllers(result);
     });
   }
 
-  String _mutationKey(Map<String, dynamic> bird) {
-    final mutation = bird['mutation']?.toString().trim() ?? '';
-    return mutation.isEmpty ? 'No mutation' : mutation;
+  String _factorValue(Map<String, dynamic> bird, String factor) {
+    return switch (factor) {
+      'Species' => bird['speciesName']?.toString().trim().isNotEmpty == true
+          ? bird['speciesName'].toString().trim()
+          : 'Unknown species',
+      'Mutation' => bird['mutation']?.toString().trim().isNotEmpty == true
+          ? bird['mutation'].toString().trim()
+          : 'No mutation',
+      'Age Group' => bird['ageGroup']?.toString().trim().isNotEmpty == true
+          ? bird['ageGroup'].toString().trim()
+          : 'Unknown age',
+      _ => '',
+    };
   }
 
+  List<String> get _availableSaleFactors {
+    final values = <String>[];
+    for (final factor in const ['Species', 'Mutation', 'Age Group']) {
+      final distinct = selectedSaleBirds.map((bird) => _factorValue(bird, factor)).toSet();
+      if (distinct.length > 1) values.add(factor);
+    }
+    return values;
+  }
+
+  String _saleGroupKey(Map<String, dynamic> bird) {
+    if (saleFactors.isEmpty) return 'All selected birds';
+    final ordered = const ['Species', 'Mutation', 'Age Group']
+        .where(saleFactors.contains)
+        .toList();
+    return ordered.map((factor) => '$factor=${_factorValue(bird, factor)}').join('|');
+  }
+
+  String _saleGroupLabel(String key) {
+    if (key == 'All selected birds') return key;
+    return key
+        .split('|')
+        .map((part) => part.contains('=') ? part.split('=').skip(1).join('=') : part)
+        .join(' · ');
+  }
+
+  Map<String, List<Map<String, dynamic>>> get _saleGroups {
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final bird in selectedSaleBirds) {
+      groups.putIfAbsent(_saleGroupKey(bird), () => []).add(bird);
+    }
+    return groups;
+  }
+
+  double _groupUnitPrice(String key) =>
+      double.tryParse(groupPriceControllers[key]?.text.trim() ?? '') ?? 0;
+
   double? _priceForBird(Map<String, dynamic> bird) {
+    final id = bird['id'].toString();
     if (salePricingMode == 'same') {
       final total = double.tryParse(samePriceController.text.trim());
       if (total == null || selectedSaleBirds.isEmpty) return total;
       return total / selectedSaleBirds.length;
     }
-    final text = salePricingMode == 'mutation'
-        ? mutationPriceControllers[_mutationKey(bird)]?.text.trim() ?? ''
-        : individualPriceControllers[bird['id'].toString()]?.text.trim() ?? '';
-    return double.tryParse(text);
+    if (salePricingMode == 'individual') {
+      return double.tryParse(individualPriceControllers[id]?.text.trim() ?? '');
+    }
+    if (overriddenBirdIds.contains(id)) {
+      return double.tryParse(individualPriceControllers[id]?.text.trim() ?? '');
+    }
+    return _groupUnitPrice(_saleGroupKey(bird));
   }
 
-  double get _saleTotal {
+  double get _saleAllocatedTotal {
     var total = 0.0;
     for (final bird in selectedSaleBirds) {
       total += _priceForBird(bird) ?? 0;
     }
     return total;
+  }
+
+  double get _saleTargetTotal =>
+      double.tryParse(samePriceController.text.trim()) ?? 0;
+
+  double get _saleBalance => _saleTargetTotal - _saleAllocatedTotal;
+
+  double get _saleTotal => salePricingMode == 'factors'
+      ? _saleAllocatedTotal
+      : salePricingMode == 'same'
+          ? _saleTargetTotal
+          : _saleAllocatedTotal;
+
+  Future<void> _showSaleGroup(
+    String key,
+    List<Map<String, dynamic>> birds,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .72,
+            child: Column(
+              children: [
+                ListTile(
+                  title: Text(
+                    '${_saleGroupLabel(key)} · ${birds.length} bird${birds.length == 1 ? '' : 's'}',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text('Optional individual price overrides'),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: birds.length,
+                    itemBuilder: (context, index) {
+                      final bird = birds[index];
+                      final id = bird['id'].toString();
+                      final ring = bird['ringNumber']?.toString() ?? 'Bird';
+                      final name = bird['name']?.toString().trim() ?? '';
+                      final override = overriddenBirdIds.contains(id);
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 5, 10, 10),
+                          child: Column(
+                            children: [
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                value: override,
+                                title: Text(
+                                  name.isEmpty ? ring : '$ring — $name',
+                                  style: TextStyle(
+                                    color: birdGenderTextColor(bird['gender']?.toString()),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${bird['speciesName'] ?? ''} · ${_factorValue(bird, 'Mutation')} · ${_factorValue(bird, 'Age Group')}',
+                                ),
+                                secondary: override
+                                    ? const Chip(label: Text('Override'))
+                                    : null,
+                                onChanged: (value) {
+                                  setState(() {
+                                    if (value) {
+                                      overriddenBirdIds.add(id);
+                                    } else {
+                                      overriddenBirdIds.remove(id);
+                                    }
+                                  });
+                                  setSheetState(() {});
+                                },
+                              ),
+                              if (override)
+                                TextField(
+                                  controller: individualPriceControllers.putIfAbsent(
+                                    id,
+                                    () => TextEditingController(),
+                                  ),
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  onChanged: (_) {
+                                    setState(() {});
+                                    setSheetState(() {});
+                                  },
+                                  decoration: const InputDecoration(
+                                    labelText: 'Individual price',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   int get _protectedSaleCount => selectedSaleBirds
@@ -314,6 +495,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       );
       return;
     }
+    if (salePricingMode == 'factors') {
+      if (_saleTargetTotal <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter the total sale amount.')),
+        );
+        return;
+      }
+      if (_saleBalance.abs() > 0.009) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Balance remaining must be 0 before saving. Current: ${_saleBalance.toStringAsFixed(2)}',
+            ),
+          ),
+        );
+        return;
+      }
+    }
     for (final bird in selectedSaleBirds) {
       final price = _priceForBird(bird);
       if (price == null || price <= 0) {
@@ -339,13 +538,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     setState(() => saving = true);
     try {
+      final soldItems = selectedSaleBirds
+          .map((bird) => {
+                'birdId': bird['id'].toString(),
+                'price': _priceForBird(bird)!,
+              })
+          .toList();
       await DatabaseHelper.instance.sellBirdBatch(
-        items: selectedSaleBirds
-            .map((bird) => {
-                  'birdId': bird['id'].toString(),
-                  'price': _priceForBird(bird)!,
-                })
-            .toList(),
+        items: soldItems,
         soldAt: date,
         buyer: buyerController.text.trim(),
         notes: [
@@ -356,6 +556,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ].join('\n'),
         releaseRingBirdIds: releaseRingBirdIds,
       );
+      if (widget.saleOutingId != null) {
+        await DatabaseHelper.instance.recordOutingSoldBirds(
+          outingId: widget.saleOutingId!,
+          items: soldItems,
+        );
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (error) {
@@ -469,11 +675,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     setState(() => saving = true);
 
     try {
+      final quantity = isFeedExpense
+          ? double.tryParse(quantityController.text.trim())
+          : null;
+      if (isFeedExpense && (quantity == null || quantity <= 0)) {
+        throw StateError('Enter the feed quantity in kg.');
+      }
       await DatabaseHelper.instance.addFinanceTransaction({
         'id': const Uuid().v4(),
         'type': type,
         'category': category,
         'amount': double.parse(amountController.text.trim()),
+        'quantity': quantity,
+        'unit': isFeedExpense ? 'kg' : null,
         'date': date.toIso8601String(),
         'notes': notesController.text.trim(),
         'birdId': null,
@@ -506,7 +720,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         decoration: const InputDecoration(
           labelText: 'Date',
           border: OutlineInputBorder(),
-          suffixIcon: Icon(Icons.calendar_month),
+          suffixIcon: Icon(Icons.unfold_more),
         ),
         child: Text(dateFormat.format(date)),
       ),
@@ -515,16 +729,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget _salePricing() {
     if (selectedSaleBirds.isEmpty) return const SizedBox.shrink();
-    final mutations = selectedSaleBirds.map(_mutationKey).toSet().toList()..sort();
+    final availableFactors = _availableSaleFactors;
+    final groups = _saleGroups.entries.toList()
+      ..sort((a, b) => _saleGroupLabel(a.key).compareTo(_saleGroupLabel(b.key)));
+    for (final entry in groups) {
+      groupPriceControllers.putIfAbsent(entry.key, () => TextEditingController());
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 14),
         SegmentedButton<String>(
           segments: const [
-            ButtonSegment(value: 'individual', label: Text('Each Bird')),
+            ButtonSegment(value: 'factors', label: Text('By Factors')),
             ButtonSegment(value: 'same', label: Text('One Total')),
-            ButtonSegment(value: 'mutation', label: Text('By Mutation')),
+            ButtonSegment(value: 'individual', label: Text('Separate')),
           ],
           selected: {salePricingMode},
           onSelectionChanged: saving
@@ -532,7 +752,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               : (selection) => setState(() => salePricingMode = selection.first),
         ),
         const SizedBox(height: 12),
-        if (salePricingMode == 'same')
+        if (salePricingMode == 'same') ...[
+          TextField(
+            controller: samePriceController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Total sale amount',
+              helperText: 'The total is divided equally between selected birds.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ] else if (salePricingMode == 'factors') ...[
           TextField(
             controller: samePriceController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -541,57 +772,129 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               labelText: 'Total sale amount',
               border: OutlineInputBorder(),
             ),
-          )
-        else if (salePricingMode == 'mutation')
-          ...mutations.map((mutation) {
-            final count = selectedSaleBirds.where((bird) => _mutationKey(bird) == mutation).length;
-            final controller = mutationPriceControllers.putIfAbsent(
-              mutation,
-              () => TextEditingController(),
-            );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(
-                controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: '$mutation · $count bird${count == 1 ? '' : 's'}',
-                  border: const OutlineInputBorder(),
-                ),
+          ),
+          const SizedBox(height: 10),
+          if (availableFactors.isNotEmpty) ...[
+            const Text('Balance using factors', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 5),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: availableFactors.map((factor) {
+                return FilterChip(
+                  label: Text(factor),
+                  selected: saleFactors.contains(factor),
+                  onSelected: saving
+                      ? null
+                      : (selected) => setState(() {
+                            if (selected) {
+                              saleFactors.add(factor);
+                            } else {
+                              saleFactors.remove(factor);
+                            }
+                            _prepareSaleControllers(selectedSaleBirds);
+                          }),
+                );
+              }).toList(),
+            ),
+          ] else
+            const Text('All selected birds have the same available pricing factors.'),
+          const SizedBox(height: 10),
+          Card(
+            color: _saleBalance.abs() <= .009
+                ? AviaryColors.income.withValues(alpha: .15)
+                : Theme.of(context).colorScheme.errorContainer,
+            child: ListTile(
+              title: const Text('Balance Remaining', style: TextStyle(fontWeight: FontWeight.w800)),
+              trailing: Text(
+                _saleBalance.toStringAsFixed(2),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
               ),
-            );
-          })
-        else
-          ...selectedSaleBirds.map((bird) {
-            final id = bird['id'].toString();
-            final ring = bird['ringNumber']?.toString() ?? 'Bird';
-            final name = bird['name']?.toString().trim() ?? '';
-            final controller = individualPriceControllers.putIfAbsent(
-              id,
-              () => TextEditingController(),
-            );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(
-                controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  label: Text(
-                    '${name.isEmpty ? ring : '$ring — $name'} price',
-                    style: TextStyle(
-                      color: birdGenderTextColor(bird['gender']?.toString()),
-                      fontWeight: FontWeight.w700,
-                    ),
+            ),
+          ),
+          ...groups.map((entry) {
+            final count = entry.value.length;
+            final controller = groupPriceControllers[entry.key]!;
+            final baseSubtotal = _groupUnitPrice(entry.key) *
+                entry.value.where((bird) => !overriddenBirdIds.contains(bird['id'].toString())).length;
+            final overrideSubtotal = entry.value
+                .where((bird) => overriddenBirdIds.contains(bird['id'].toString()))
+                .fold<double>(0, (sum, bird) => sum + (_priceForBird(bird) ?? 0));
+            return Card(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => _showSaleGroup(entry.key, entry.value),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${_saleGroupLabel(entry.key)} · $count bird${count == 1 ? '' : 's'}',
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          if (entry.value.any((bird) => overriddenBirdIds.contains(bird['id'].toString())))
+                            const Chip(label: Text('Override'), visualDensity: VisualDensity.compact),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: controller,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Price per bird',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Group subtotal: ${(baseSubtotal + overrideSubtotal).toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
                   ),
-                  border: const OutlineInputBorder(),
                 ),
               ),
             );
           }),
+        ] else ...selectedSaleBirds.map((bird) {
+          final id = bird['id'].toString();
+          final ring = bird['ringNumber']?.toString() ?? 'Bird';
+          final name = bird['name']?.toString().trim() ?? '';
+          final controller = individualPriceControllers.putIfAbsent(
+            id,
+            () => TextEditingController(),
+          );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                label: Text(
+                  '${name.isEmpty ? ring : '$ring — $name'} price',
+                  style: TextStyle(
+                    color: birdGenderTextColor(bird['gender']?.toString()),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          );
+        }),
         Card(
-          color: AviaryColors.income,
+          color: AviaryColors.income.withValues(alpha: .14),
           child: ListTile(
             title: Text('${selectedSaleBirds.length} birds selected'),
             trailing: Text(
@@ -792,12 +1095,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 label: const Text('OPEN BIRD PURCHASE'),
               ),
             ] else ...[
+              if (isFeedExpense) ...[
+                TextFormField(
+                  controller: quantityController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Feed Quantity (kg)',
+                    helperText: 'Used for monthly feed purchase/consumption trends.',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (!isFeedExpense) return null;
+                    final quantity = double.tryParse(value?.trim() ?? '');
+                    return quantity == null || quantity <= 0
+                        ? 'Enter feed quantity in kg'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
               TextFormField(
                 controller: amountController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Amount',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: isFeedExpense ? 'Total Feed Cost' : 'Amount',
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (isBirdSale || isBirdPurchase) return null;

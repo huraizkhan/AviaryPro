@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../database/database_helper.dart';
 import '../../ui/aviary_design.dart';
+import '../../widgets/aviary_date_picker.dart';
 
 class BulkBirdPurchaseScreen extends StatefulWidget {
   const BulkBirdPurchaseScreen({super.key});
@@ -120,7 +121,7 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showAviaryDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
@@ -160,7 +161,7 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
   String? _validate() {
     if (_speciesId == null) return 'Choose a species.';
     if (!_hasRingRange) {
-      return 'Configure ring numbers for this species in More > Ring Management first.';
+      return 'Configure ring numbers for this species in Settings > Ring Management first.';
     }
     if (_cageId == null) return 'Choose a cage.';
     final rings = <String>{};
@@ -267,7 +268,7 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
       decoration: InputDecoration(
         labelText: label,
         helperText: values.isEmpty
-            ? 'Add allowed values in More > ${label == 'Name' ? 'Bird Name' : 'Mutation'} Management.'
+            ? 'Add allowed values in Settings > ${label == 'Name' ? 'Bird Name' : 'Mutation'} Management.'
             : 'Choose a managed $label.',
         border: const OutlineInputBorder(),
       ),
@@ -306,7 +307,7 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
         labelText: 'Ring *',
         helperText: _hasRingRange
             ? 'Only available rings are shown.'
-            : 'Configure rings in More > Ring Management.',
+            : 'Configure rings in Settings > Ring Management.',
         border: const OutlineInputBorder(),
       ),
       items: options
@@ -473,7 +474,7 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
               decoration: const InputDecoration(
                 labelText: 'Purchase Date — shared',
                 border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.calendar_month),
+                suffixIcon: Icon(Icons.unfold_more),
               ),
               child: Text(_dateFormat.format(_date)),
             ),

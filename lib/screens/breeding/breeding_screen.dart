@@ -97,6 +97,26 @@ class _BreedingScreenState extends State<BreedingScreen> {
     return DateTime.tryParse(pair['nextExpectedHatchDate']?.toString() ?? '');
   }
 
+  String _stage(Map<String, dynamic> pair) {
+    final chicks = (pair['chicksInNest'] as num?)?.toInt() ?? 0;
+    if (chicks > 0) return 'Chicks';
+    final eggs = (pair['activeEggCount'] as num?)?.toInt() ?? 0;
+    if (eggs > 0) {
+      final next = _nextHatch(pair);
+      if (next != null) {
+        final now = DateTime.now();
+        final days = DateTime(next.year, next.month, next.day)
+            .difference(DateTime(now.year, now.month, now.day))
+            .inDays;
+        if (days >= -1 && days <= 1) return 'Hatching';
+      }
+      return 'Incubating';
+    }
+    final clutches = (pair['activeClutchCount'] as num?)?.toInt() ?? 0;
+    if (clutches > 0) return 'Laying';
+    return pair['breedingStatus'] == 'Active' ? 'Bonding' : 'Resting';
+  }
+
   Color _pairTint(Map<String, dynamic> pair) {
     return aviaryBreedingTint(
       activeEggs: (pair['activeEggCount'] as num?)?.toInt() ?? 0,
@@ -307,11 +327,10 @@ class _BreedingScreenState extends State<BreedingScreen> {
                                   ),
                                 ),
                               ),
-                              if (pair['breedingStatus'] != 'Active')
-                                const Chip(
-                                  visualDensity: VisualDensity.compact,
-                                  label: Text('Inactive'),
-                                ),
+                              Chip(
+                                visualDensity: VisualDensity.compact,
+                                label: Text(_stage(pair)),
+                              ),
                               const Icon(Icons.chevron_right),
                             ],
                           ),

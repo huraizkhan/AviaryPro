@@ -114,20 +114,26 @@ class GoogleDriveSyncService {
   Future<SyncResult?> runAutomaticSync() async {
     if (!await enabled) return null;
     if (_running) return null;
-    final now = DateTime.now();
-    if (_lastAttemptAt != null &&
-        now.difference(_lastAttemptAt!) < const Duration(seconds: 30)) {
-      return null;
-    }
-    _lastAttemptAt = now;
 
     try {
       final backupService = GoogleDriveBackupService.instance;
-      // Automatic sync never invokes Google authentication UI.
+      // Restore the previously connected account silently after app restart.
+      if (backupService.currentEmail == null) {
+        await backupService.restorePreviousSession();
+      }
       if (backupService.currentEmail == null) return null;
 
       final hasLocalChanges =
           await DatabaseHelper.instance.hasPendingSyncChanges();
+      final now = DateTime.now();
+      final minimumGap = hasLocalChanges
+          ? const Duration(seconds: 2)
+          : const Duration(seconds: 15);
+      if (_lastAttemptAt != null && now.difference(_lastAttemptAt!) < minimumGap) {
+        return null;
+      }
+      _lastAttemptAt = now;
+
       if (!hasLocalChanges) {
         DriveSession? probeSession;
         try {

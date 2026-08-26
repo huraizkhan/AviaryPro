@@ -12,7 +12,7 @@ import '../cages/add_cage_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../finance/add_transaction_screen.dart';
 import '../finance/finance_screen.dart';
-import '../more/more_screen.dart';
+import '../settings/settings_screen.dart';
 import '../search/global_search_screen.dart';
 import '../../services/google_drive_backup_service.dart';
 import '../../services/google_drive_sync_service.dart';
@@ -34,7 +34,8 @@ class _HomeScreenState extends State<HomeScreen>
   int dashboardRefreshToken = 0;
   late final AnimationController _menuController;
   late final PageController _pageController;
-  Timer? _cloudTimer;
+  Timer? _syncTimer;
+  Timer? _backupTimer;
   bool _cloudMaintenanceRunning = false;
 
   static const _pageTitles = [
@@ -42,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen>
     'Birds',
     'Breeding',
     'Finance',
-    'More',
+    'Settings',
   ];
 
   @override
@@ -57,17 +58,21 @@ class _HomeScreenState extends State<HomeScreen>
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.instance.syncFromDatabase();
-      _runCloudMaintenance(bootstrapEmptyDevice: true);
+      _initializeCloud();
     });
-    _cloudTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+    _syncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       _runCloudMaintenance();
+    });
+    _backupTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _runCloudMaintenance(checkBackup: true);
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _cloudTimer?.cancel();
+    _syncTimer?.cancel();
+    _backupTimer?.cancel();
     _pageController.dispose();
     _menuController.dispose();
     super.dispose();
@@ -77,15 +82,28 @@ class _HomeScreenState extends State<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       NotificationService.instance.syncFromDatabase();
-      _runCloudMaintenance(bootstrapEmptyDevice: true);
+      _initializeCloud();
       if (mounted) {
         setState(() => dashboardRefreshToken++);
       }
     }
   }
 
+  Future<void> _initializeCloud() async {
+    try {
+      await GoogleDriveBackupService.instance.restorePreviousSession();
+    } catch (_) {
+      // A missing or expired lightweight session is handled by Backup & Sync.
+    }
+    await _runCloudMaintenance(
+      bootstrapEmptyDevice: true,
+      checkBackup: true,
+    );
+  }
+
   Future<void> _runCloudMaintenance({
     bool bootstrapEmptyDevice = false,
+    bool checkBackup = false,
   }) async {
     if (_cloudMaintenanceRunning) return;
     _cloudMaintenanceRunning = true;
@@ -98,9 +116,11 @@ class _HomeScreenState extends State<HomeScreen>
       syncResult ??=
           await GoogleDriveSyncService.instance.runAutomaticSync();
 
-      // Backups are deliberately checked only after sync has finished, so a
-      // scheduled snapshot never races with a cloud download.
-      await GoogleDriveBackupService.instance.runAutomaticBackupIfDue();
+      // Backups stay separate from edit-sync. They are only checked on startup,
+      // resume and the slower backup timer.
+      if (checkBackup) {
+        await GoogleDriveBackupService.instance.runAutomaticBackupIfDue();
+      }
 
       if ((syncResult?.downloadedChanges ?? 0) > 0 && mounted) {
         await context.read<BirdProvider>().loadBirds();
@@ -469,7 +489,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: AviaryResponsivePane(child: FinanceScreen()),
             ),
             const _KeepAlivePage(
-              child: AviaryResponsivePane(child: MoreScreen()),
+              child: AviaryResponsivePane(child: SettingsScreen()),
             ),
           ],
         ),
@@ -528,13 +548,10 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             label: 'Finance',
           ),
-          NavigationDestination(
-            icon: const AviaryIcon(AviaryIconType.more),
-            selectedIcon: const AviaryIcon(
-              AviaryIconType.more,
-              color: AviaryColors.history,
-            ),
-            label: 'More',
+          const NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings, color: AviaryColors.history),
+            label: 'Settings',
           ),
           ],
         ),

@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../database/database_helper.dart';
 import '../../providers/bird_provider.dart';
 import '../../ui/aviary_design.dart';
+import '../../widgets/aviary_date_picker.dart';
 
 class AddBirdScreen extends StatefulWidget {
   final Map<String, dynamic>? bird;
@@ -66,6 +67,8 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
   bool hasConfiguredRingRange = false;
 
   String gender = 'Unknown';
+  String eyeColor = 'Unknown';
+  String downColor = 'Unknown';
   String? selectedSpeciesId;
   String? selectedSource;
   String? selectedAgeGroup;
@@ -232,6 +235,14 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
     final savedGender = bird['gender']?.toString();
     gender = const ['Male', 'Female', 'Unknown'].contains(savedGender)
         ? savedGender!
+        : 'Unknown';
+    final savedEyeColor = bird['eyeColor']?.toString();
+    eyeColor = const ['Black', 'Red', 'Unknown'].contains(savedEyeColor)
+        ? savedEyeColor!
+        : 'Unknown';
+    final savedDownColor = bird['downColor']?.toString();
+    downColor = const ['White', 'Yellow', 'Unknown'].contains(savedDownColor)
+        ? savedDownColor!
         : 'Unknown';
 
     selectedSpeciesId = bird['speciesId']?.toString();
@@ -449,7 +460,7 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
     required DateTime? currentValue,
     required ValueChanged<DateTime> onSelected,
   }) async {
-    final selectedDate = await showDatePicker(
+    final selectedDate = await showAviaryDatePicker(
       context: context,
       initialDate: currentValue ?? DateTime.now(),
       firstDate: DateTime(1980),
@@ -495,7 +506,7 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
               labelText: required ? '$label *' : label,
               border: const OutlineInputBorder(),
               errorText: field.errorText,
-              suffixIcon: const Icon(Icons.calendar_month),
+              suffixIcon: const Icon(Icons.unfold_more),
             ),
             child: Text(
               value == null ? 'Select date' : _dateFormat.format(value),
@@ -848,6 +859,8 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
         'name': nameController.text.trim(),
         'gender': gender,
         'mutation': mutationController.text.trim(),
+        'eyeColor': eyeColor == 'Unknown' ? null : eyeColor,
+        'downColor': downColor == 'Unknown' ? null : downColor,
         'hatchDate': isBred ? hatchDate?.toIso8601String() : null,
         'speciesId': selectedSpeciesId,
         'ageGroup': _calculatedAgeGroup() == 'Not available'
@@ -1064,7 +1077,7 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
                       helperText: selectedSpeciesId == null
                           ? 'Choose species first.'
                           : !hasConfiguredRingRange
-                              ? 'Configure rings in More > Ring Management first.'
+                              ? 'Configure rings in Settings > Ring Management first.'
                               : availableRings.isEmpty
                                   ? 'No available configured rings for this species.'
                                   : 'Only available configured rings are shown.',
@@ -1113,7 +1126,7 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
                     decoration: InputDecoration(
                       labelText: 'Bird Name',
                       helperText: managedNames.isEmpty
-                          ? 'Add names in More > Bird Name Management.'
+                          ? 'Add names in Settings > Bird Name Management.'
                           : 'Choose a managed bird name.',
                       border: const OutlineInputBorder(),
                     ),
@@ -1195,7 +1208,7 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
                     decoration: InputDecoration(
                       labelText: 'Mutation',
                       helperText: managedMutations.isEmpty
-                          ? 'Add mutations in More > Mutation Management.'
+                          ? 'Add mutations in Settings > Mutation Management.'
                           : 'Choose a managed mutation.',
                       border: const OutlineInputBorder(),
                     ),
@@ -1216,6 +1229,47 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
                         : (value) => setState(
                               () => mutationController.text = value ?? '',
                             ),
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: eyeColor,
+                          decoration: const InputDecoration(
+                            labelText: 'Eye Color',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'Unknown', child: Text('Unknown')),
+                            DropdownMenuItem(value: 'Black', child: Text('Black eyes')),
+                            DropdownMenuItem(value: 'Red', child: Text('Red eyes')),
+                          ],
+                          onChanged: isSaving
+                              ? null
+                              : (value) => setState(() => eyeColor = value ?? 'Unknown'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: downColor,
+                          decoration: const InputDecoration(
+                            labelText: 'Chick Down',
+                            helperText: 'Useful before full feathering.',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'Unknown', child: Text('Unknown')),
+                            DropdownMenuItem(value: 'White', child: Text('White')),
+                            DropdownMenuItem(value: 'Yellow', child: Text('Yellow')),
+                          ],
+                          onChanged: isSaving
+                              ? null
+                              : (value) => setState(() => downColor = value ?? 'Unknown'),
+                        ),
+                      ),
+                    ],
                   ),
                   if (selectedSource != null) ...[
                     const SizedBox(height: 15),

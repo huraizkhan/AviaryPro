@@ -10,6 +10,7 @@ import '../breeding/pair_details_screen.dart';
 import 'assign_bird_screen.dart';
 import 'create_pair_screen.dart';
 import 'edit_cage_screen.dart';
+import '../../widgets/aviary_date_picker.dart';
 
 class CageDetailsScreen extends StatefulWidget {
   const CageDetailsScreen({
@@ -309,9 +310,9 @@ class _CageDetailsScreenState extends State<CageDetailsScreen> {
                         '${saleDate.month.toString().padLeft(2, '0')}/'
                         '${saleDate.year}',
                       ),
-                      trailing: const Icon(Icons.calendar_month_outlined),
+                      trailing: const Icon(Icons.unfold_more),
                       onTap: () async {
-                        final picked = await showDatePicker(
+                        final picked = await showAviaryDatePicker(
                           context: dialogBodyContext,
                           initialDate: saleDate,
                           firstDate: DateTime(2000),

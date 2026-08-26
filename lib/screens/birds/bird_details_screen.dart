@@ -10,6 +10,7 @@ import '../history/family_tree_screen.dart';
 import '../history/history_screen.dart';
 import 'bird_offspring_screen.dart';
 import 'add_bird_screen.dart';
+import '../../widgets/aviary_date_picker.dart';
 
 class BirdDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> bird;
@@ -394,7 +395,7 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                     const SizedBox(height: 12),
                     InkWell(
                       onTap: () async {
-                        final picked = await showDatePicker(
+                        final picked = await showAviaryDatePicker(
                           context: dialogContext,
                           initialDate: saleDate,
                           firstDate: DateTime(2000),
@@ -407,7 +408,7 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Sale Date',
-                          suffixIcon: Icon(Icons.calendar_month),
+                          suffixIcon: Icon(Icons.unfold_more),
                         ),
                         child: Text(dateFormat.format(saleDate)),
                       ),
@@ -832,6 +833,13 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                               ),
                             ],
                           ),
+                          if ((bird['saleStatus']?.toString() ?? 'Not for Sale') != 'Not for Sale') ...[
+                            const SizedBox(height: 7),
+                            Chip(
+                              visualDensity: VisualDensity.compact,
+                              label: Text(bird['saleStatus'].toString()),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -841,6 +849,13 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                     _detail('Species', bird['speciesName']?.toString() ?? ''),
                     _detail('Mutation', bird['mutation']?.toString() ?? ''),
                     _detail('Gender', bird['gender']?.toString() ?? ''),
+                    _detail(
+                      'Eye Color',
+                      (bird['eyeColor']?.toString().trim() ?? '').isEmpty
+                          ? ''
+                          : '${bird['eyeColor']} eyes',
+                    ),
+                    _detail('Chick Down', bird['downColor']?.toString() ?? ''),
                   ]),
                   const SizedBox(height: 10),
                   _sectionCard('Age', [

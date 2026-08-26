@@ -687,11 +687,30 @@ class _BirdsScreenState extends State<BirdsScreen> {
                   color: birdGenderTextColor(gender),
                 ),
               ),
-              subtitle: Text(
-                '$species · $gender · ${_ageGroup(bird)}\n'
-                '${aviaryCageLabel(cage)}${bird['pairId'] == null ? '' : ' · Paired'}',
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Wrap(
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: [
+                    Chip(label: Text(species), visualDensity: VisualDensity.compact),
+                    if ((bird['mutation']?.toString().trim() ?? '').isNotEmpty)
+                      Chip(
+                        label: Text(bird['mutation'].toString()),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    Chip(label: Text(_ageGroup(bird)), visualDensity: VisualDensity.compact),
+                    Chip(label: Text(aviaryCageLabel(cage)), visualDensity: VisualDensity.compact),
+                    if (bird['pairId'] != null)
+                      const Chip(label: Text('Paired'), visualDensity: VisualDensity.compact),
+                    if ((bird['eyeColor']?.toString().trim() ?? '').isNotEmpty)
+                      Chip(
+                        label: Text('${bird['eyeColor']} eyes'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
               ),
-              isThreeLine: true,
               trailing: selectionMode
                   ? null
                   : PopupMenuButton<String>(

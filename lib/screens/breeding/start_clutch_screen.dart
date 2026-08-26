@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../database/database_helper.dart';
+import '../../widgets/aviary_date_picker.dart';
 
 class StartClutchScreen extends StatefulWidget {
   final String pairId;
@@ -31,7 +32,7 @@ class _StartClutchScreenState extends State<StartClutchScreen> {
   }
 
   Future<void> _pickDate() async {
-    final date = await showDatePicker(
+    final date = await showAviaryDatePicker(
       context: context,
       initialDate: startedAt,
       firstDate: DateTime(2000),
@@ -85,7 +86,7 @@ class _StartClutchScreenState extends State<StartClutchScreen> {
               decoration: const InputDecoration(
                 labelText: 'Clutch start date',
                 border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.calendar_month),
+                suffixIcon: Icon(Icons.unfold_more),
               ),
               child: Text(dateFormat.format(startedAt)),
             ),

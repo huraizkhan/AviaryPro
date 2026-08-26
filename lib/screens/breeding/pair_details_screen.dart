@@ -25,6 +25,7 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
   Map<String, dynamic>? pair;
   List<Map<String, dynamic>> clutches = const [];
   List<Map<String, dynamic>> pairSessions = const [];
+  List<Map<String, dynamic>> observations = const [];
   bool isLoading = true;
 
   @override
@@ -38,12 +39,14 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
       DatabaseHelper.instance.getBreedingPairById(widget.pairId),
       DatabaseHelper.instance.getClutchesForPair(widget.pairId),
       DatabaseHelper.instance.getPairSessions(widget.pairId),
+      DatabaseHelper.instance.getBreedingObservations(widget.pairId),
     ]);
     if (!mounted) return;
     setState(() {
       pair = results[0] as Map<String, dynamic>?;
       clutches = results[1] as List<Map<String, dynamic>>;
       pairSessions = results[2] as List<Map<String, dynamic>>;
+      observations = results[3] as List<Map<String, dynamic>>;
       isLoading = false;
     });
   }
@@ -104,6 +107,136 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
       ),
     );
     if (mounted) await _loadData();
+  }
+
+  Future<void> _quickObservation(String type) async {
+    await DatabaseHelper.instance.addBreedingObservation(
+      pairId: widget.pairId,
+      observationType: type,
+      observedAt: DateTime.now(),
+      clutchId: clutches
+          .where((clutch) => clutch['status'] == 'Active')
+          .map((clutch) => clutch['id']?.toString())
+          .whereType<String>()
+          .firstOrNull,
+    );
+    if (!mounted) return;
+    await _loadData();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$type recorded.')),
+    );
+  }
+
+  Future<void> _resolveObservation(Map<String, dynamic> item) async {
+    await DatabaseHelper.instance.resolveBreedingObservation(item['id'].toString());
+    if (mounted) await _loadData();
+  }
+
+  String _pairStage() {
+    final active = clutches.where((clutch) => clutch['status'] == 'Active').toList();
+    final chicks = active.fold<int>(
+      0,
+      (sum, clutch) => sum + ((clutch['chicksInNest'] as num?)?.toInt() ?? 0),
+    );
+    if (chicks > 0) return 'Chicks';
+    final hatchDates = active
+        .map((clutch) => DateTime.tryParse(clutch['nextExpectedHatchDate']?.toString() ?? ''))
+        .whereType<DateTime>()
+        .toList();
+    if (hatchDates.isNotEmpty) {
+      final now = DateTime.now();
+      final nearest = hatchDates.reduce((a, b) => a.isBefore(b) ? a : b);
+      final days = DateTime(nearest.year, nearest.month, nearest.day)
+          .difference(DateTime(now.year, now.month, now.day))
+          .inDays;
+      if (days >= -1 && days <= 1) return 'Hatching';
+      return 'Incubating';
+    }
+    final unresolved = observations.where((row) => (row['resolved'] as num?)?.toInt() != 1).toList();
+    if (unresolved.isNotEmpty) {
+      final type = unresolved.first['observationType']?.toString() ?? '';
+      if (type == 'Suspected Egg') return 'Laying';
+      if (type == 'Breeding Interest') return 'Interested';
+      if (type == 'Problem') return 'Problem';
+      if (type == 'No Interest') return 'Bonding';
+      if (type == 'Chick Heard') return 'Hatching';
+    }
+    return pair?['breedingStatus'] == 'Active' ? 'Bonding' : 'Resting';
+  }
+
+  Widget _stageStrip() {
+    final current = _pairStage();
+    const stages = ['Bonding', 'Interested', 'Laying', 'Incubating', 'Hatching', 'Chicks', 'Resting', 'Problem'];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: stages.map((stage) {
+          final selected = stage == current;
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Chip(
+              avatar: selected ? const Icon(Icons.circle, size: 12) : null,
+              label: Text(stage),
+              backgroundColor: selected
+                  ? AviaryColors.breeding.withValues(alpha: .20)
+                  : null,
+              side: selected
+                  ? BorderSide(color: AviaryColors.breeding.withValues(alpha: .6))
+                  : null,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _quickObservationSection() {
+    final unresolved = observations
+        .where((row) => (row['resolved'] as num?)?.toInt() != 1)
+        .take(5)
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Quick Observations', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            ('Suspected Egg', Icons.egg_outlined),
+            ('Chick Heard', Icons.hearing_outlined),
+            ('Breeding Interest', Icons.favorite_outline),
+            ('No Interest', Icons.heart_broken_outlined),
+            ('Problem', Icons.warning_amber_rounded),
+          ].map((entry) => ActionChip(
+                avatar: Icon(entry.$2, size: 18),
+                label: Text(entry.$1),
+                onPressed: () => _quickObservation(entry.$1),
+              )).toList(),
+        ),
+        if (unresolved.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          ...unresolved.map((item) {
+            final date = DateTime.tryParse(item['observedAt']?.toString() ?? '');
+            return Card(
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.visibility_outlined),
+                title: Text(item['observationType']?.toString() ?? 'Observation', style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text(date == null ? 'Unconfirmed' : '${dateFormat.format(date)} · Unconfirmed'),
+                trailing: IconButton(
+                  tooltip: 'Resolve / confirm later',
+                  icon: const Icon(Icons.check_circle_outline),
+                  onPressed: () => _resolveObservation(item),
+                ),
+              ),
+            );
+          }),
+        ],
+      ],
+    );
   }
 
   Color _clutchTint(Map<String, dynamic> clutch) {
@@ -382,7 +515,11 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            _stageStrip(),
+            const SizedBox(height: 14),
+            _quickObservationSection(),
+            const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: _addEgg,
               icon: const AviaryIcon(

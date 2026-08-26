@@ -17,6 +17,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   final moneyFormat = NumberFormat('#,##0.00');
 
   Map<String, double> summary = const {};
+  Map<String, double> feedAnalytics = const {};
   List<Map<String, dynamic>> transactions = [];
   bool loading = true;
 
@@ -30,11 +31,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final results = await Future.wait<dynamic>([
       DatabaseHelper.instance.getFinancePeriodSummary(),
       DatabaseHelper.instance.getFinanceTransactions(),
+      DatabaseHelper.instance.getFeedAnalytics(),
     ]);
     if (!mounted) return;
     setState(() {
       summary = results[0] as Map<String, double>;
       transactions = results[1] as List<Map<String, dynamic>>;
+      feedAnalytics = results[2] as Map<String, double>;
       loading = false;
     });
   }
@@ -119,6 +122,21 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  Widget _feedStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -147,6 +165,48 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 balance: summary['yearBalance'] ?? 0,
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Card(
+            color: AviaryColors.breeding.withValues(alpha: .10),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.grass_outlined, color: AviaryColors.breeding),
+                      SizedBox(width: 8),
+                      Text('Feed Trend', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _feedStat(
+                          'This month',
+                          '${(feedAnalytics['monthKg'] ?? 0).toStringAsFixed(1)} kg',
+                        ),
+                      ),
+                      Expanded(
+                        child: _feedStat(
+                          '3-month avg',
+                          '${(feedAnalytics['rollingMonthlyKg'] ?? 0).toStringAsFixed(1)} kg/mo',
+                        ),
+                      ),
+                      Expanded(
+                        child: _feedStat(
+                          'Month cost',
+                          moneyFormat.format(feedAnalytics['monthCost'] ?? 0),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -191,6 +251,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
               final date = DateTime.tryParse(item['date']?.toString() ?? '');
               final bird = item['ringNumber']?.toString();
               final notes = item['notes']?.toString().trim() ?? '';
+              final quantity = (item['quantity'] as num?)?.toDouble();
+              final unit = item['unit']?.toString().trim() ?? '';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Card(
@@ -225,6 +287,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
                                 ),
                                 fontWeight: FontWeight.w700,
                               ),
+                            ),
+                          if (quantity != null && quantity > 0)
+                            TextSpan(
+                              text: '\n${quantity.toStringAsFixed(quantity % 1 == 0 ? 0 : 1)} ${unit.isEmpty ? 'kg' : unit}',
                             ),
                           if (notes.isNotEmpty) TextSpan(text: '\n$notes'),
                         ],

@@ -25,7 +25,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 14,
+      version: 15,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -109,6 +109,7 @@ class DatabaseHelper {
     await _createBreedingTables(db);
     await _createCageStructureTables(db);
     await _createManagementTables(db);
+    await _createWorkflowTables(db);
     await _createUniqueIndexes(db);
     await _seedDefaultSpecies(db);
     await _createSyncInfrastructure(db);
@@ -382,6 +383,89 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _createWorkflowTables(Database db) async {
+    await _addColumnIfMissing(db, 'finance_transactions', 'quantity', 'REAL');
+    await _addColumnIfMissing(db, 'finance_transactions', 'unit', 'TEXT');
+    await _addColumnIfMissing(db, 'birds', 'eyeColor', 'TEXT');
+    await _addColumnIfMissing(db, 'birds', 'downColor', 'TEXT');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sale_locations(
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        active INTEGER NOT NULL DEFAULT 1,
+        createdAt TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sale_outings(
+        id TEXT PRIMARY KEY,
+        outingDate TEXT NOT NULL,
+        locationId TEXT,
+        status TEXT NOT NULL DEFAULT 'Open',
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (locationId) REFERENCES sale_locations(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sale_outing_birds(
+        id TEXT PRIMARY KEY,
+        outingId TEXT NOT NULL,
+        birdId TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Taken',
+        soldPrice REAL,
+        updatedAt TEXT NOT NULL,
+        FOREIGN KEY (outingId) REFERENCES sale_outings(id),
+        FOREIGN KEY (birdId) REFERENCES birds(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_sale_outing_bird_unique
+      ON sale_outing_birds(outingId, birdId)
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sale_price_guides(
+        id TEXT PRIMARY KEY,
+        speciesId TEXT NOT NULL,
+        mutation TEXT NOT NULL DEFAULT '',
+        ageGroup TEXT NOT NULL,
+        price REAL NOT NULL,
+        updatedAt TEXT NOT NULL,
+        FOREIGN KEY (speciesId) REFERENCES species(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_sale_price_guide_unique
+      ON sale_price_guides(speciesId, mutation COLLATE NOCASE, ageGroup COLLATE NOCASE)
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS breeding_observations(
+        id TEXT PRIMARY KEY,
+        pairId TEXT NOT NULL,
+        clutchId TEXT,
+        observationType TEXT NOT NULL,
+        observedAt TEXT NOT NULL,
+        resolved INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (pairId) REFERENCES pairs(id),
+        FOREIGN KEY (clutchId) REFERENCES clutches(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_breeding_observations_pair
+      ON breeding_observations(pairId, observedAt DESC)
+    ''');
+  }
+
   Future<void> _createActivityTables(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS activity_events(
@@ -444,6 +528,11 @@ class DatabaseHelper {
     'activity_events',
     'ring_ranges',
     'managed_bird_values',
+    'sale_locations',
+    'sale_outings',
+    'sale_outing_birds',
+    'sale_price_guides',
+    'breeding_observations',
   ];
 
   Future<void> _createSyncInfrastructure(Database db) async {
@@ -548,6 +637,11 @@ class DatabaseHelper {
       },
       {'table': 'ring_ranges', 'newKey': 'NEW.id', 'oldKey': 'OLD.id'},
       {'table': 'managed_bird_values', 'newKey': 'NEW.id', 'oldKey': 'OLD.id'},
+      {'table': 'sale_locations', 'newKey': 'NEW.id', 'oldKey': 'OLD.id'},
+      {'table': 'sale_outings', 'newKey': 'NEW.id', 'oldKey': 'OLD.id'},
+      {'table': 'sale_outing_birds', 'newKey': 'NEW.id', 'oldKey': 'OLD.id'},
+      {'table': 'sale_price_guides', 'newKey': 'NEW.id', 'oldKey': 'OLD.id'},
+      {'table': 'breeding_observations', 'newKey': 'NEW.id', 'oldKey': 'OLD.id'},
     ];
 
     for (final definition in triggerDefinitions) {
@@ -904,6 +998,13 @@ class DatabaseHelper {
           'finance_transactions',
           'bird_events',
           'activity_events',
+          'ring_ranges',
+          'managed_bird_values',
+          'sale_locations',
+          'sale_outings',
+          'sale_outing_birds',
+          'sale_price_guides',
+          'breeding_observations',
         ];
         final deferredBirdRows = <Map<String, dynamic>>[];
 
@@ -939,6 +1040,13 @@ class DatabaseHelper {
         }
 
         const deleteOrder = <String>[
+          'breeding_observations',
+          'sale_outing_birds',
+          'sale_outings',
+          'sale_locations',
+          'sale_price_guides',
+          'managed_bird_values',
+          'ring_ranges',
           'activity_events',
           'bird_events',
           'finance_transactions',
@@ -1826,6 +1934,12 @@ class DatabaseHelper {
         );
       }
 
+      await _createSyncTriggers(db);
+    }
+
+    if (oldVersion < 15) {
+      await _createWorkflowTables(db);
+      await _createSyncInfrastructure(db);
       await _createSyncTriggers(db);
     }
   }
@@ -4677,6 +4791,8 @@ class DatabaseHelper {
     required String ringNumber,
     required DateTime hatchDate,
     String? name,
+    String? eyeColor,
+    String? downColor,
     String? notes,
   }) async {
     final db = await database;
@@ -4708,6 +4824,8 @@ class DatabaseHelper {
         'name': name?.trim(),
         'gender': 'Unknown',
         'mutation': null,
+        'eyeColor': eyeColor?.trim().isEmpty == true ? null : eyeColor?.trim(),
+        'downColor': downColor?.trim().isEmpty == true ? null : downColor?.trim(),
         'hatchDate': hatchDate.toIso8601String(),
         'speciesId': row['speciesId'],
         'ageGroup': 'Chick',
@@ -5730,6 +5848,373 @@ class DatabaseHelper {
     };
   }
 
+  Future<Map<String, double>> getFeedAnalytics() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT
+        COALESCE(SUM(CASE
+          WHEN category = 'Feed'
+            AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime')
+          THEN COALESCE(quantity, 0) ELSE 0 END), 0) AS monthKg,
+        COALESCE(SUM(CASE
+          WHEN category = 'Feed'
+            AND date >= date('now', 'localtime', '-90 day')
+          THEN COALESCE(quantity, 0) ELSE 0 END), 0) AS ninetyDayKg,
+        COALESCE(SUM(CASE
+          WHEN category = 'Feed'
+            AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime')
+          THEN amount ELSE 0 END), 0) AS monthCost,
+        COALESCE(SUM(CASE
+          WHEN category = 'Feed'
+            AND date >= date('now', 'localtime', '-90 day')
+          THEN amount ELSE 0 END), 0) AS ninetyDayCost
+      FROM finance_transactions
+      WHERE type = 'Expense'
+    ''');
+    final row = rows.first;
+    double value(String key) => (row[key] as num?)?.toDouble() ?? 0;
+    return {
+      'monthKg': value('monthKg'),
+      'rollingMonthlyKg': value('ninetyDayKg') / 3,
+      'monthCost': value('monthCost'),
+      'rollingMonthlyCost': value('ninetyDayCost') / 3,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getSaleLocations({
+    bool activeOnly = true,
+  }) async {
+    final db = await database;
+    return db.query(
+      'sale_locations',
+      where: activeOnly ? 'active = 1' : null,
+      orderBy: 'name COLLATE NOCASE ASC',
+    );
+  }
+
+  Future<String> upsertSaleLocation(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty) throw StateError('Sale location is required.');
+    final db = await database;
+    final existing = await db.query(
+      'sale_locations',
+      columns: ['id'],
+      where: 'name = ? COLLATE NOCASE',
+      whereArgs: [clean],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      final id = existing.first['id'].toString();
+      await db.update(
+        'sale_locations',
+        {'active': 1, 'name': clean},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return id;
+    }
+    final id = const Uuid().v4();
+    await db.insert('sale_locations', {
+      'id': id,
+      'name': clean,
+      'active': 1,
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+    return id;
+  }
+
+  Future<void> removeSaleLocation(String id) async {
+    final db = await database;
+    await db.update(
+      'sale_locations',
+      {'active': 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<String> createSaleOuting({
+    required List<String> birdIds,
+    required DateTime outingDate,
+    required String locationName,
+    String? notes,
+  }) async {
+    if (birdIds.isEmpty) throw StateError('Select at least one bird.');
+    final locationId = await upsertSaleLocation(locationName);
+    final db = await database;
+    final outingId = const Uuid().v4();
+    final now = DateTime.now().toIso8601String();
+    await db.transaction((txn) async {
+      for (final birdId in birdIds) {
+        final rows = await txn.query(
+          'birds',
+          columns: ['active', 'saleStatus'],
+          where: 'id = ?',
+          whereArgs: [birdId],
+          limit: 1,
+        );
+        if (rows.isEmpty || (rows.first['active'] as num?)?.toInt() == 0) {
+          throw StateError('One selected bird is no longer active.');
+        }
+        final status = rows.first['saleStatus']?.toString() ?? 'Not for Sale';
+        if (!const {'Available', 'Reserved'}.contains(status)) {
+          throw StateError('Only birds currently For Sale can be taken out.');
+        }
+      }
+
+      await txn.insert('sale_outings', {
+        'id': outingId,
+        'outingDate': outingDate.toIso8601String(),
+        'locationId': locationId,
+        'status': 'Open',
+        'notes': notes?.trim(),
+        'createdAt': now,
+      });
+      for (final birdId in birdIds) {
+        await txn.insert('sale_outing_birds', {
+          'id': const Uuid().v4(),
+          'outingId': outingId,
+          'birdId': birdId,
+          'status': 'Taken',
+          'soldPrice': null,
+          'updatedAt': now,
+        });
+        await txn.update(
+          'birds',
+          {
+            'saleStatus': 'Taken for Sale',
+            'reservedBuyer': null,
+            'reservedPrice': null,
+            'reservedAt': null,
+          },
+          where: 'id = ?',
+          whereArgs: [birdId],
+        );
+      }
+    });
+    return outingId;
+  }
+
+  Future<List<Map<String, dynamic>>> getSaleOutings({
+    bool openOnly = false,
+  }) async {
+    final db = await database;
+    return db.rawQuery('''
+      SELECT outing.*, location.name AS locationName,
+        COUNT(item.id) AS takenCount,
+        SUM(CASE WHEN item.status = 'Sold' THEN 1 ELSE 0 END) AS soldCount,
+        SUM(CASE WHEN item.status = 'Returned' THEN 1 ELSE 0 END) AS returnedCount,
+        SUM(CASE WHEN item.status = 'Taken' THEN 1 ELSE 0 END) AS stillOutCount,
+        COALESCE(SUM(CASE WHEN item.status = 'Sold' THEN item.soldPrice ELSE 0 END), 0)
+          AS soldAmount
+      FROM sale_outings outing
+      LEFT JOIN sale_locations location ON location.id = outing.locationId
+      LEFT JOIN sale_outing_birds item ON item.outingId = outing.id
+      ${openOnly ? "WHERE outing.status = 'Open'" : ''}
+      GROUP BY outing.id
+      ORDER BY outing.outingDate DESC, outing.createdAt DESC
+    ''');
+  }
+
+  Future<List<Map<String, dynamic>>> getSaleOutingBirds(
+    String outingId, {
+    String? status,
+  }) async {
+    final db = await database;
+    final whereStatus = status == null ? '' : 'AND item.status = ?';
+    return db.rawQuery('''
+      SELECT item.id AS outingBirdId, item.status AS outingStatus,
+        item.soldPrice AS outingSoldPrice, bird.*, species.name AS speciesName,
+        cage.identifier AS cageIdentifier
+      FROM sale_outing_birds item
+      INNER JOIN birds bird ON bird.id = item.birdId
+      LEFT JOIN species species ON species.id = bird.speciesId
+      LEFT JOIN cages cage ON cage.id = bird.cageId
+      WHERE item.outingId = ? $whereStatus
+      ORDER BY species.name COLLATE NOCASE ASC,
+        bird.mutation COLLATE NOCASE ASC,
+        bird.ringNumber COLLATE NOCASE ASC
+    ''', [outingId, if (status != null) status]);
+  }
+
+  Future<void> returnSaleOutingBirds(String outingId) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    await db.transaction((txn) async {
+      final rows = await txn.query(
+        'sale_outing_birds',
+        columns: ['id', 'birdId'],
+        where: "outingId = ? AND status = 'Taken'",
+        whereArgs: [outingId],
+      );
+      for (final row in rows) {
+        await txn.update(
+          'sale_outing_birds',
+          {'status': 'Returned', 'updatedAt': now},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+        await txn.update(
+          'birds',
+          {'saleStatus': 'Available'},
+          where: "id = ? AND COALESCE(active, 1) = 1 AND saleStatus = 'Taken for Sale'",
+          whereArgs: [row['birdId']],
+        );
+      }
+      await txn.update(
+        'sale_outings',
+        {'status': 'Completed'},
+        where: 'id = ?',
+        whereArgs: [outingId],
+      );
+    });
+  }
+
+  Future<void> recordOutingSoldBirds({
+    required String outingId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    if (items.isEmpty) return;
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    await db.transaction((txn) async {
+      for (final item in items) {
+        final birdId = item['birdId']?.toString();
+        final price = (item['price'] as num?)?.toDouble();
+        if (birdId == null) continue;
+        await txn.update(
+          'sale_outing_birds',
+          {'status': 'Sold', 'soldPrice': price, 'updatedAt': now},
+          where: "outingId = ? AND birdId = ? AND status = 'Taken'",
+          whereArgs: [outingId, birdId],
+        );
+      }
+      final remaining = Sqflite.firstIntValue(await txn.rawQuery(
+        "SELECT COUNT(*) FROM sale_outing_birds WHERE outingId = ? AND status = 'Taken'",
+        [outingId],
+      ));
+      if ((remaining ?? 0) == 0) {
+        await txn.update(
+          'sale_outings',
+          {'status': 'Completed'},
+          where: 'id = ?',
+          whereArgs: [outingId],
+        );
+      }
+    });
+  }
+
+  Future<Map<String, int>> getSaleWorkspaceSummary() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT
+        (SELECT COUNT(*) FROM birds
+          WHERE COALESCE(active, 1) = 1 AND saleStatus IN ('Available', 'Reserved')) AS forSale,
+        (SELECT COUNT(*) FROM birds
+          WHERE COALESCE(active, 1) = 1 AND saleStatus = 'Taken for Sale') AS taken,
+        (SELECT COUNT(*) FROM birds
+          WHERE COALESCE(active, 1) = 0 AND saleStatus = 'Sold') AS sold,
+        (SELECT COUNT(*) FROM sale_outing_birds WHERE status = 'Returned') AS returned
+    ''');
+    final row = rows.first;
+    int value(String key) => (row[key] as num?)?.toInt() ?? 0;
+    return {
+      'forSale': value('forSale'),
+      'taken': value('taken'),
+      'sold': value('sold'),
+      'returned': value('returned'),
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getSalePriceGuides() async {
+    final db = await database;
+    return db.rawQuery('''
+      SELECT guide.*, species.name AS speciesName
+      FROM sale_price_guides guide
+      INNER JOIN species species ON species.id = guide.speciesId
+      ORDER BY species.name COLLATE NOCASE, guide.mutation COLLATE NOCASE, guide.ageGroup
+    ''');
+  }
+
+  Future<void> setSalePriceGuide({
+    required String speciesId,
+    required String mutation,
+    required String ageGroup,
+    required double price,
+  }) async {
+    if (price <= 0) throw StateError('Estimated price must be greater than zero.');
+    final db = await database;
+    final cleanMutation = mutation.trim();
+    final existing = await db.query(
+      'sale_price_guides',
+      columns: ['id'],
+      where: 'speciesId = ? AND mutation = ? COLLATE NOCASE AND ageGroup = ? COLLATE NOCASE',
+      whereArgs: [speciesId, cleanMutation, ageGroup],
+      limit: 1,
+    );
+    final values = {
+      'speciesId': speciesId,
+      'mutation': cleanMutation,
+      'ageGroup': ageGroup,
+      'price': price,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    if (existing.isEmpty) {
+      await db.insert('sale_price_guides', {'id': const Uuid().v4(), ...values});
+    } else {
+      await db.update(
+        'sale_price_guides',
+        values,
+        where: 'id = ?',
+        whereArgs: [existing.first['id']],
+      );
+    }
+  }
+
+  Future<void> addBreedingObservation({
+    required String pairId,
+    required String observationType,
+    required DateTime observedAt,
+    String? clutchId,
+    String? notes,
+  }) async {
+    final db = await database;
+    await db.insert('breeding_observations', {
+      'id': const Uuid().v4(),
+      'pairId': pairId,
+      'clutchId': clutchId,
+      'observationType': observationType,
+      'observedAt': observedAt.toIso8601String(),
+      'resolved': 0,
+      'notes': notes?.trim(),
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getBreedingObservations(
+    String pairId, {
+    int limit = 20,
+  }) async {
+    final db = await database;
+    return db.query(
+      'breeding_observations',
+      where: 'pairId = ?',
+      whereArgs: [pairId],
+      orderBy: 'observedAt DESC, createdAt DESC',
+      limit: limit,
+    );
+  }
+
+  Future<void> resolveBreedingObservation(String id) async {
+    final db = await database;
+    await db.update(
+      'breeding_observations',
+      {'resolved': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Dashboard, activity and notifications
   // ---------------------------------------------------------------------------
@@ -5898,7 +6383,16 @@ class DatabaseHelper {
           SELECT COUNT(*) FROM birds
           WHERE COALESCE(active, 1) = 1
             AND saleStatus IN ('Available', 'Reserved')
-        ) AS saleList
+        ) AS saleList,
+        (
+          SELECT COUNT(*) FROM birds
+          WHERE COALESCE(active, 1) = 1
+            AND saleStatus = 'Taken for Sale'
+        ) AS takenForSale,
+        (
+          SELECT COUNT(*) FROM breeding_observations
+          WHERE resolved = 0
+        ) AS observations
     ''');
     final row = rows.first;
     int value(String key) => (row[key] as num?)?.toInt() ?? 0;
@@ -5910,6 +6404,8 @@ class DatabaseHelper {
       'chicks': value('chicks'),
       'reserved': value('reserved'),
       'saleList': value('saleList'),
+      'takenForSale': value('takenForSale'),
+      'observations': value('observations'),
     };
   }
 

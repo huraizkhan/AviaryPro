@@ -10,6 +10,7 @@ import '../../ui/aviary_design.dart';
 import '../birds/bird_details_screen.dart';
 import 'add_egg_screen.dart';
 import 'select_foster_clutch_screen.dart';
+import '../../widgets/aviary_date_picker.dart';
 
 class ClutchDetailsScreen extends StatefulWidget {
   final String clutchId;
@@ -149,6 +150,8 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
         ringNumber: result.ringNumber,
         hatchDate: result.hatchDate,
         name: result.name,
+        eyeColor: result.eyeColor,
+        downColor: result.downColor,
         notes: result.notes,
       );
       if (!mounted) return;
@@ -256,7 +259,7 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
         await DatabaseHelper.instance.getRingRanges(speciesId: speciesId);
     if (!mounted) return;
     if (ringRanges.isEmpty) {
-      _message('Configure rings for this species in More > Ring Management first.');
+      _message('Configure rings for this species in Settings > Ring Management first.');
       return;
     }
     final permanentRings =
@@ -711,12 +714,16 @@ class _HatchEggResult {
   final String ringNumber;
   final String name;
   final String notes;
+  final String? eyeColor;
+  final String? downColor;
   final DateTime hatchDate;
 
   const _HatchEggResult({
     required this.ringNumber,
     required this.name,
     required this.notes,
+    required this.eyeColor,
+    required this.downColor,
     required this.hatchDate,
   });
 }
@@ -736,6 +743,8 @@ class _HatchEggDialogState extends State<_HatchEggDialog> {
   final _notesController = TextEditingController();
   final _dateFormat = DateFormat('dd-MMM-yy');
   DateTime _hatchDate = DateTime.now();
+  String? _eyeColor;
+  String? _downColor;
   String? _ringError;
   bool _closing = false;
 
@@ -767,7 +776,7 @@ class _HatchEggDialogState extends State<_HatchEggDialog> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showAviaryDatePicker(
       context: context,
       initialDate: _hatchDate,
       firstDate: DateTime(2000),
@@ -789,6 +798,8 @@ class _HatchEggDialogState extends State<_HatchEggDialog> {
         ringNumber: ring,
         name: _nameController.text.trim(),
         notes: _notesController.text.trim(),
+        eyeColor: _eyeColor,
+        downColor: _downColor,
         hatchDate: _hatchDate,
       ),
     );
@@ -824,13 +835,47 @@ class _HatchEggDialogState extends State<_HatchEggDialog> {
               ),
             ),
             const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _eyeColor,
+                    decoration: const InputDecoration(
+                      labelText: 'Eye Color',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Black', child: Text('Black eyes')),
+                      DropdownMenuItem(value: 'Red', child: Text('Red eyes')),
+                    ],
+                    onChanged: (value) => setState(() => _eyeColor = value),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _downColor,
+                    decoration: const InputDecoration(
+                      labelText: 'Down Color',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'White', child: Text('White')),
+                      DropdownMenuItem(value: 'Yellow', child: Text('Yellow')),
+                    ],
+                    onChanged: (value) => setState(() => _downColor = value),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             InkWell(
               onTap: _pickDate,
               child: InputDecorator(
                 decoration: const InputDecoration(
                   labelText: 'Hatch Date',
                   border: OutlineInputBorder(),
-                  suffixIcon: Icon(Icons.calendar_month),
+                  suffixIcon: Icon(Icons.unfold_more),
                 ),
                 child: Text(_dateFormat.format(_hatchDate)),
               ),

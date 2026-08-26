@@ -9,9 +9,11 @@ class BirdSaleSelectionScreen extends StatefulWidget {
   const BirdSaleSelectionScreen({
     super.key,
     this.initialSelectedIds = const <String>{},
+    this.eligibleBirdIds,
   });
 
   final Set<String> initialSelectedIds;
+  final Set<String>? eligibleBirdIds;
 
   @override
   State<BirdSaleSelectionScreen> createState() => _BirdSaleSelectionScreenState();
@@ -39,7 +41,11 @@ class _BirdSaleSelectionScreenState extends State<BirdSaleSelectionScreen> {
     final rows = await DatabaseHelper.instance.getBirds();
     if (!mounted) return;
     setState(() {
-      _birds = rows.where((bird) => bird['active'] != 0).toList();
+      _birds = rows.where((bird) {
+        if (bird['active'] == 0) return false;
+        final eligible = widget.eligibleBirdIds;
+        return eligible == null || eligible.contains(bird['id'].toString());
+      }).toList();
       _selected.removeWhere(
         (id) => !_birds.any((bird) => bird['id']?.toString() == id),
       );
