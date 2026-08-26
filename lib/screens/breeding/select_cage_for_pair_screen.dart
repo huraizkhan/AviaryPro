@@ -84,9 +84,12 @@ class _SelectCageForPairScreenState extends State<SelectCageForPairScreen> {
                     final femaleCount = cage['femaleCount'] as int;
                     final canCreate = maleCount > 0 && femaleCount > 0;
                     return Card(
-                      color: canCreate
-                          ? AviaryColors.cages.withValues(alpha: .10)
-                          : Theme.of(context).disabledColor.withValues(alpha: .06),
+                      color: aviaryCardSurface(
+                        context,
+                        tint: canCreate
+                            ? AviaryColors.cages.withValues(alpha: .10)
+                            : Theme.of(context).disabledColor.withValues(alpha: .06),
+                      ),
                       child: ListTile(
                         enabled: canCreate,
                         contentPadding: const EdgeInsets.symmetric(
@@ -94,7 +97,7 @@ class _SelectCageForPairScreenState extends State<SelectCageForPairScreen> {
                           vertical: 10,
                         ),
                         leading: CircleAvatar(
-                          backgroundColor: Colors.white.withValues(alpha: .78),
+                          backgroundColor: aviaryAvatarSurface(context),
                           child: const AviaryIcon(
                             AviaryIconType.cage,
                             color: AviaryColors.cages,

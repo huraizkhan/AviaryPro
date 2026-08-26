@@ -363,7 +363,7 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AviaryColors.hatchOneDay,
+                          color: aviaryCardSurface(context, tint: AviaryColors.hatchOneDay),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Text(
@@ -624,7 +624,7 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
 
   Widget _sectionCard(String title, List<Widget> children, {Color? color}) {
     return Card(
-      color: color,
+      color: aviaryCardSurface(context, tint: color),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -723,11 +723,9 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
     final ring = ringRaw.isEmpty ? 'No ring' : ringRaw;
     final active = bird['active'] != 0;
     final ageGroup = _ageGroup();
-    final tint = bird['pairId'] != null
-        ? AviaryColors.paired
-        : ageGroup == 'Chick'
-            ? AviaryColors.chick
-            : Colors.white;
+    final tint = ageGroup == 'Chick'
+        ? AviaryColors.chick
+        : Colors.transparent;
     final partner = bird['pairId'] == null
         ? ''
         : _birdLabel('partnerRingNumber', 'partnerName');
@@ -754,7 +752,7 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                 children: [
                   if (!active) ...[
                     Card(
-                      color: AviaryColors.hatchOneDay,
+                      color: aviaryCardSurface(context, tint: AviaryColors.hatchOneDay),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -804,7 +802,7 @@ class _BirdDetailsScreenState extends State<BirdDetailsScreen> {
                     const SizedBox(height: 10),
                   ],
                   Card(
-                    color: tint,
+                    color: aviaryCardSurface(context, tint: tint),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(

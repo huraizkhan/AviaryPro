@@ -225,7 +225,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final expense = _finance['monthExpense'] ?? 0;
     final balance = _finance['monthBalance'] ?? 0;
     return Card(
-      color: AviaryColors.finance.withValues(alpha: .08),
+      color: aviaryCardSurface(
+        context,
+        tint: AviaryColors.finance.withValues(alpha: .08),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: () => widget.onNavigate(3),
@@ -433,7 +436,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 9),
                 child: Card(
-                  color: _alertColor(severity),
+                  color: aviaryCardSurface(context, tint: _alertColor(severity)),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
                     onTap: () => _openAlert(alert),
@@ -443,7 +446,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           CircleAvatar(
-                            backgroundColor: Colors.white.withValues(alpha: .75),
+                            backgroundColor: aviaryAvatarSurface(context),
                             child: isHatch
                                 ? const AviaryIcon(AviaryIconType.egg)
                                 : const AviaryIcon(AviaryIconType.chick),

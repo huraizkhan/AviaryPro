@@ -378,7 +378,7 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           Card(
-            color: AviaryColors.expense,
+            color: aviaryCardSurface(context, tint: AviaryColors.expense),
             child: const ListTile(
               leading: AviaryIcon(AviaryIconType.bird),
               title: Text(

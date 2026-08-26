@@ -226,9 +226,12 @@ class _BirdOffspringScreenState extends State<BirdOffspringScreen> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Card(
-                          color: status == 'Present'
-                              ? AviaryColors.birds.withValues(alpha: .10)
-                              : Colors.grey.withValues(alpha: .10),
+                          color: aviaryCardSurface(
+                            context,
+                            tint: status == 'Present'
+                                ? AviaryColors.birds.withValues(alpha: .10)
+                                : Colors.grey.withValues(alpha: .10),
+                          ),
                           child: ListTile(
                             leading: const AviaryIcon(AviaryIconType.bird),
                             title: Text(

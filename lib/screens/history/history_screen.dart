@@ -254,7 +254,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 children: [
                   if (widget.birdId == null) ...[
                     Card(
-                      color: AviaryColors.history.withValues(alpha: .10),
+                      color: aviaryCardSurface(
+                        context,
+                        tint: AviaryColors.history.withValues(alpha: .10),
+                      ),
                       child: ListTile(
                         leading: const Icon(Icons.inventory_2_outlined),
                         title: const Text('Previous Birds', style: TextStyle(fontWeight: FontWeight.w800)),

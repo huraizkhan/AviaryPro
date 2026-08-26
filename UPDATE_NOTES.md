@@ -1,3 +1,12 @@
+# Aviary Pro 1.4.12+21 — Dark-theme UI repair
+
+- Fixed unreadable pale card backgrounds and low-contrast text in Dark mode.
+- Birds, cages, breeding pairs, clutch/egg/chick cards, finance transactions, search, history, backup, sale/value and related management cards now use theme-aware surfaces.
+- Bird list cards no longer turn pink merely because a bird is paired; gender remains communicated through blue/pink bird text and compact status chips.
+- Added a shared adaptive semantic-card surface so future screens can keep status colors without breaking Dark mode contrast.
+- Added a consistent theme-aware avatar/icon surface and a clearer Dark-mode chip style.
+- No database, sync, finance, breeding or other business-logic changes.
+
 # Aviary Pro 1.4.11+20 — Workflow redesign foundation
 
 - Added Sale Workspace with For Sale, Taken, Sold and Returned counts.

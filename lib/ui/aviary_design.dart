@@ -72,6 +72,26 @@ abstract final class AviaryColors {
   static const Color reserved = Color(0xFFE6E1FF);
 }
 
+/// Converts the app's light semantic tints into readable card surfaces in dark
+/// mode. Light mode keeps the existing visual language; dark mode uses the
+/// tint only as a subtle accent over the themed card surface.
+Color aviaryCardSurface(BuildContext context, {Color? tint}) {
+  final theme = Theme.of(context);
+  final base = theme.cardTheme.color ?? theme.colorScheme.surfaceContainerLow;
+  if (tint == null || tint == Colors.transparent) return base;
+  if (theme.brightness != Brightness.dark) return tint;
+  return Color.alphaBlend(tint.withValues(alpha: .16), base);
+}
+
+/// Neutral avatar/icon backing that maintains contrast in both themes.
+Color aviaryAvatarSurface(BuildContext context) {
+  final theme = Theme.of(context);
+  if (theme.brightness == Brightness.dark) {
+    return theme.colorScheme.surfaceContainerHighest;
+  }
+  return Colors.white.withValues(alpha: .82);
+}
+
 Color? birdGenderTextColor(String? gender) {
   return switch (gender?.trim().toLowerCase()) {
     'male' => const Color(0xFF2878D4),

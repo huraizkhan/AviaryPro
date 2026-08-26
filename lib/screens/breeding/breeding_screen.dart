@@ -286,7 +286,7 @@ class _BreedingScreenState extends State<BreedingScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Card(
-                  color: tint == Colors.transparent ? Colors.white : tint,
+                  color: aviaryCardSurface(context, tint: tint),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
                     onTap: () async {
@@ -309,7 +309,7 @@ class _BreedingScreenState extends State<BreedingScreen> {
                           Row(
                             children: [
                               CircleAvatar(
-                                backgroundColor: Colors.white.withValues(alpha: .75),
+                                backgroundColor: aviaryAvatarSurface(context),
                                 child: AviaryIcon(
                                   activeEggs > 0
                                       ? AviaryIconType.egg

@@ -168,7 +168,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ),
           const SizedBox(height: 12),
           Card(
-            color: AviaryColors.breeding.withValues(alpha: .10),
+            color: aviaryCardSurface(
+              context,
+              tint: AviaryColors.breeding.withValues(alpha: .10),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -256,10 +259,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Card(
-                  color: isIncome ? AviaryColors.income : AviaryColors.expense,
+                  color: aviaryCardSurface(
+                    context,
+                    tint: isIncome ? AviaryColors.income : AviaryColors.expense,
+                  ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: Colors.white.withValues(alpha: .72),
+                      backgroundColor: aviaryAvatarSurface(context),
                       child: Icon(
                         isIncome ? Icons.south_west : Icons.north_east,
                         color: isIncome

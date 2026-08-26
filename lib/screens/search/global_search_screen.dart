@@ -66,7 +66,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       'Pair' => AviaryColors.paired,
       'Clutch' => AviaryColors.eggsNormal,
       'Egg' => AviaryColors.eggsNormal,
-      _ => Colors.white,
+      _ => Colors.transparent,
     };
   }
 
@@ -140,10 +140,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                         final item = results[index];
                         final notes = item['notes']?.toString().trim() ?? '';
                         return Card(
-                          color: _tint(item['type']?.toString() ?? ''),
+                          color: aviaryCardSurface(
+                            context,
+                            tint: _tint(item['type']?.toString() ?? ''),
+                          ),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: Colors.white.withValues(alpha: .75),
+                              backgroundColor: aviaryAvatarSurface(context),
                               child: _icon(item['type']?.toString() ?? ''),
                             ),
                             title: Text(

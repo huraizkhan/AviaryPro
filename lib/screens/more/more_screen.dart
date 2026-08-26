@@ -23,11 +23,11 @@ class MoreScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Card(
-        color: color.withValues(alpha: .10),
+        color: aviaryCardSurface(context, tint: color.withValues(alpha: .10)),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: CircleAvatar(
-            backgroundColor: Colors.white.withValues(alpha: .75),
+            backgroundColor: aviaryAvatarSurface(context),
             child: icon,
           ),
           title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),

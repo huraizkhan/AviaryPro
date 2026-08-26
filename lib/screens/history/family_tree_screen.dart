@@ -321,7 +321,10 @@ class _FamilyTreeScreenState extends State<FamilyTreeScreen> {
                     ),
                     children: [
                       Card(
-                        color: AviaryColors.history.withValues(alpha: .10),
+                        color: aviaryCardSurface(
+                          context,
+                          tint: AviaryColors.history.withValues(alpha: .10),
+                        ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: _openFocusDetails,

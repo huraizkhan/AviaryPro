@@ -176,9 +176,12 @@ class _CreatePairScreenState extends State<CreatePairScreen> {
                 ),
                 const SizedBox(height: 18),
                 if (!canCreatePair)
-                  const Card(
-                    color: AviaryColors.hatchFiveDays,
-                    child: Padding(
+                  Card(
+                    color: aviaryCardSurface(
+                      context,
+                      tint: AviaryColors.hatchFiveDays,
+                    ),
+                    child: const Padding(
                       padding: EdgeInsets.all(16),
                       child: Text(
                         'This cage does not have an available male and female bird.',

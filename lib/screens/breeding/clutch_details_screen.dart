@@ -433,7 +433,7 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
       unresolvedEggs: unresolved,
       nextHatchDate: next,
     );
-    return tint == Colors.transparent ? Colors.white : tint;
+    return tint;
   }
 
   @override
@@ -460,7 +460,7 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
           children: [
             Card(
-              color: _clutchTint(),
+              color: aviaryCardSurface(context, tint: _clutchTint()),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -612,11 +612,11 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
     final isPending = status == 'Incubating' || status == 'Fertile';
 
     return Card(
-      color: _eggTint(egg),
+      color: aviaryCardSurface(context, tint: _eggTint(egg)),
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.white.withValues(alpha: .74),
+          backgroundColor: aviaryAvatarSurface(context),
           child: AviaryIcon(
             isHatched ? AviaryIconType.chick : AviaryIconType.egg,
           ),
@@ -671,13 +671,13 @@ class _ClutchDetailsScreenState extends State<ClutchDetailsScreen> {
     final ring = chick['ringNumber']?.toString() ?? 'Chick';
 
     return Card(
-      color: AviaryColors.chick,
+      color: aviaryCardSurface(context, tint: AviaryColors.chick),
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         onTap: () => _openBird(chick),
-        leading: const CircleAvatar(
-          backgroundColor: Colors.white70,
-          child: AviaryIcon(AviaryIconType.chick),
+        leading: CircleAvatar(
+          backgroundColor: aviaryAvatarSurface(context),
+          child: const AviaryIcon(AviaryIconType.chick),
         ),
         title: Text(
           name.isEmpty ? ring : '$ring — $name',

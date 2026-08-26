@@ -45,6 +45,18 @@ class AviaryProApp extends StatelessWidget {
           side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .38)),
         ),
       ),
+      chipTheme: ChipThemeData(
+        backgroundColor: dark
+            ? scheme.surfaceContainerHighest
+            : scheme.surfaceContainerLow,
+        selectedColor: scheme.primaryContainer,
+        side: BorderSide(color: scheme.outlineVariant),
+        labelStyle: TextStyle(color: scheme.onSurface),
+        secondaryLabelStyle: TextStyle(color: scheme.onPrimaryContainer),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: card,

@@ -185,7 +185,7 @@ class _PairOffspringScreenState extends State<PairOffspringScreen> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Card(
-                          color: _tint(child),
+                          color: aviaryCardSurface(context, tint: _tint(child)),
                           child: ListTile(
                             leading: const AviaryIcon(AviaryIconType.bird),
                             title: Text(

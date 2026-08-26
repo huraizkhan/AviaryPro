@@ -251,7 +251,7 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
       unresolvedEggs: activeEggs,
       nextHatchDate: next,
     );
-    return tint == Colors.transparent ? Colors.white : tint;
+    return tint;
   }
 
   Widget _countColumn(String label, Object value) {
@@ -280,7 +280,7 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Card(
-        color: _clutchTint(clutch),
+        color: aviaryCardSurface(context, tint: _clutchTint(clutch)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _openClutch(clutch),
@@ -291,7 +291,7 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: Colors.white.withValues(alpha: .74),
+                      backgroundColor: aviaryAvatarSurface(context),
                       child: const AviaryIcon(AviaryIconType.egg),
                     ),
                     const SizedBox(width: 10),
@@ -426,7 +426,7 @@ class _PairDetailsScreenState extends State<PairDetailsScreen> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
           children: [
             Card(
-              color: AviaryColors.paired,
+              color: aviaryCardSurface(context, tint: AviaryColors.paired),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

@@ -231,7 +231,10 @@ class _BirdValueCalculatorScreenState extends State<BirdValueCalculatorScreen> {
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
         children: [
           Card(
-            color: AviaryColors.finance.withValues(alpha: .10),
+            color: aviaryCardSurface(
+            context,
+            tint: AviaryColors.finance.withValues(alpha: .10),
+          ),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(

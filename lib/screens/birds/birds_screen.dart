@@ -306,9 +306,9 @@ class _BirdsScreenState extends State<BirdsScreen> {
   }
 
   Color _birdTint(Map<String, dynamic> bird) {
-    if (bird['pairId'] != null) return AviaryColors.paired;
-    if (_ageGroup(bird) == 'Chick') return AviaryColors.chick;
-    return Colors.white;
+    // Bird identity/status is already visible through text and chips. Avoid
+    // painting the entire card by pair/gender state, especially in dark mode.
+    return Colors.transparent;
   }
 
   Color _cageTint(Map<String, dynamic> cage) {
@@ -323,7 +323,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
       unresolvedEggs: unresolved,
       nextHatchDate: nextHatch,
     );
-    return tint == Colors.transparent ? Colors.white : tint;
+    return tint;
   }
 
   Widget _summaryHeader() {
@@ -341,7 +341,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
         children: [
           CircleAvatar(
             radius: 27,
-            backgroundColor: Colors.white.withValues(alpha: .78),
+            backgroundColor: aviaryAvatarSurface(context),
             child: const AviaryIcon(
               AviaryIconType.bird,
               size: 30,
@@ -394,12 +394,12 @@ class _BirdsScreenState extends State<BirdsScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Card(
-            color: _cageTint(cage),
+            color: aviaryCardSurface(context, tint: _cageTint(cage)),
             child: ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               leading: CircleAvatar(
-                backgroundColor: Colors.white.withValues(alpha: .76),
+                backgroundColor: aviaryAvatarSurface(context),
                 child: const AviaryIcon(
                   AviaryIconType.cage,
                   color: AviaryColors.cages,
@@ -663,7 +663,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
           child: Card(
             color: selected
                 ? Theme.of(context).colorScheme.primaryContainer
-                : _birdTint(bird),
+                : aviaryCardSurface(context, tint: _birdTint(bird)),
             child: ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -677,7 +677,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
                       onChanged: (_) => _toggleSelection(bird),
                     )
                   : CircleAvatar(
-                      backgroundColor: Colors.white.withValues(alpha: .72),
+                      backgroundColor: aviaryAvatarSurface(context),
                       child: const AviaryIcon(AviaryIconType.bird),
                     ),
               title: Text(
@@ -993,7 +993,10 @@ class _BirdFilterScreenState extends State<_BirdFilterScreen> {
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 110),
         children: [
           Card(
-            color: AviaryColors.birds.withValues(alpha: .10),
+            color: aviaryCardSurface(
+              context,
+              tint: AviaryColors.birds.withValues(alpha: .10),
+            ),
             child: ListTile(
               leading: const Icon(Icons.filter_alt_outlined),
               title: Text(

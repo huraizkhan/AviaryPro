@@ -801,9 +801,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const Text('All selected birds have the same available pricing factors.'),
           const SizedBox(height: 10),
           Card(
-            color: _saleBalance.abs() <= .009
-                ? AviaryColors.income.withValues(alpha: .15)
-                : Theme.of(context).colorScheme.errorContainer,
+            color: aviaryCardSurface(
+              context,
+              tint: _saleBalance.abs() <= .009
+                  ? AviaryColors.income.withValues(alpha: .15)
+                  : Theme.of(context).colorScheme.errorContainer,
+            ),
             child: ListTile(
               title: const Text('Balance Remaining', style: TextStyle(fontWeight: FontWeight.w800)),
               trailing: Text(
@@ -894,7 +897,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           );
         }),
         Card(
-          color: AviaryColors.income.withValues(alpha: .14),
+          color: aviaryCardSurface(
+            context,
+            tint: AviaryColors.income.withValues(alpha: .14),
+          ),
           child: ListTile(
             title: Text('${selectedSaleBirds.length} birds selected'),
             trailing: Text(
@@ -1032,7 +1038,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               _birdSaleForm()
             else if (isEggSale) ...[
               Card(
-                color: AviaryColors.income,
+                color: aviaryCardSurface(context, tint: AviaryColors.income),
                 child: ListTile(
                   leading: const AviaryIcon(AviaryIconType.egg),
                   title: Text(
@@ -1079,7 +1085,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
             ] else if (isBirdPurchase) ...[
               Card(
-                color: AviaryColors.expense,
+                color: aviaryCardSurface(context, tint: AviaryColors.expense),
                 child: const ListTile(
                   leading: AviaryIcon(AviaryIconType.bird),
                   title: Text('Bird Purchase'),

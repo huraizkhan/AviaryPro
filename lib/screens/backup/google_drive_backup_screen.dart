@@ -443,7 +443,10 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 40),
               children: [
                 Card(
-                  color: AviaryColors.history.withValues(alpha: .09),
+                  color: aviaryCardSurface(
+                    context,
+                    tint: AviaryColors.history.withValues(alpha: .09),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -576,7 +579,10 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Card(
-                    color: Colors.red.withValues(alpha: .08),
+                    color: aviaryCardSurface(
+                      context,
+                      tint: Colors.red.withValues(alpha: .08),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(14),
                       child: Text(
