@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-enum SyncBannerKind { idle, syncing, success, failed }
+enum SyncBannerKind { idle, syncing, success, offline, failed }
 
 enum SyncFailureKind {
   accountSigningFailed,
@@ -37,6 +37,7 @@ class SyncStatusService {
       ValueNotifier<SyncBannerState>(const SyncBannerState.idle());
 
   Timer? _clearTimer;
+  bool _offlineAnnounced = false;
 
   void restorePersistentFailure({
     DateTime? lastSuccessfulAt,
@@ -50,6 +51,7 @@ class SyncStatusService {
 
   void showSyncing({DateTime? lastSuccessfulAt}) {
     _clearTimer?.cancel();
+    _offlineAnnounced = false;
 
     // A retry must not hide an existing red warning. The warning remains until
     // the retry actually succeeds (or the user explicitly removes the account).
@@ -63,6 +65,7 @@ class SyncStatusService {
 
   void showSuccess(DateTime syncedAt) {
     _clearTimer?.cancel();
+    _offlineAnnounced = false;
     state.value = SyncBannerState(
       kind: SyncBannerKind.success,
       lastSuccessfulAt: syncedAt,
@@ -72,6 +75,27 @@ class SyncStatusService {
         state.value = const SyncBannerState.idle();
       }
     });
+  }
+
+  void showOffline({DateTime? lastSuccessfulAt}) {
+    // Never replace a persistent red warning with a temporary offline notice.
+    if (state.value.kind == SyncBannerKind.failed || _offlineAnnounced) return;
+
+    _clearTimer?.cancel();
+    _offlineAnnounced = true;
+    state.value = SyncBannerState(
+      kind: SyncBannerKind.offline,
+      lastSuccessfulAt: lastSuccessfulAt,
+    );
+    _clearTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (state.value.kind == SyncBannerKind.offline) {
+        state.value = const SyncBannerState.idle();
+      }
+    });
+  }
+
+  void markOnline() {
+    _offlineAnnounced = false;
   }
 
   void showFailure({

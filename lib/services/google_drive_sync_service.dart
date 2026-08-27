@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -52,6 +53,8 @@ class GoogleDriveSyncService {
 
   bool _running = false;
   DateTime? _lastAttemptAt;
+  DateTime? _lastConnectivityCheckAt;
+  bool? _lastConnectivityResult;
 
   Future<bool> get enabled async {
     final prefs = await SharedPreferences.getInstance();
@@ -84,10 +87,60 @@ class GoogleDriveSyncService {
     return null;
   }
 
+  Future<bool> _hasInternetConnection({bool force = false}) async {
+    final now = DateTime.now();
+    if (!force &&
+        _lastConnectivityCheckAt != null &&
+        _lastConnectivityResult != null &&
+        now.difference(_lastConnectivityCheckAt!) <
+            const Duration(seconds: 12)) {
+      return _lastConnectivityResult!;
+    }
+
+    var connected = false;
+    try {
+      final result = await InternetAddress.lookup('www.googleapis.com')
+          .timeout(const Duration(seconds: 2));
+      connected = result.isNotEmpty &&
+          result.any((address) => address.rawAddress.isNotEmpty);
+    } on Object {
+      connected = false;
+    }
+
+    _lastConnectivityCheckAt = now;
+    _lastConnectivityResult = connected;
+    return connected;
+  }
+
+  Future<void> _clearGenericSyncFailure() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_failureKindKey) != SyncFailureKind.syncFailed.name) {
+      return;
+    }
+    await prefs.remove(_lastSyncErrorKey);
+    await prefs.remove(_failureKindKey);
+    if (SyncStatusService.instance.state.value.failureKind ==
+        SyncFailureKind.syncFailed) {
+      SyncStatusService.instance.clear();
+    }
+  }
+
   Future<void> _recordFailure(
     Object error, {
     SyncFailureKind? failureKind,
   }) async {
+    // If connectivity vanished, keep queued edits local and stay quiet instead
+    // of converting a temporary offline period into a persistent red error.
+    if (!await _hasInternetConnection(force: true)) {
+      if (await DatabaseHelper.instance.hasPendingSyncChanges()) {
+        SyncStatusService.instance.showOffline(
+          lastSuccessfulAt: await lastSuccessfulSyncAt,
+        );
+      }
+      return;
+    }
+
+    SyncStatusService.instance.markOnline();
     final kind = failureKind ?? _classifySyncFailure(error);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastSyncErrorKey, error.toString());
@@ -197,6 +250,30 @@ class GoogleDriveSyncService {
     if (!await enabled) return null;
     if (_running) return null;
 
+    final hasLocalChanges =
+        await DatabaseHelper.instance.hasPendingSyncChanges();
+    final now = DateTime.now();
+    final minimumGap = hasLocalChanges
+        ? const Duration(seconds: 2)
+        : const Duration(seconds: 15);
+    if (_lastAttemptAt != null &&
+        now.difference(_lastAttemptAt!) < minimumGap) {
+      return null;
+    }
+    _lastAttemptAt = now;
+
+    // Offline is a normal temporary condition, not a sync failure. Only show
+    // one short notice when there are local edits waiting to be uploaded.
+    if (!await _hasInternetConnection()) {
+      if (hasLocalChanges) {
+        SyncStatusService.instance.showOffline(
+          lastSuccessfulAt: await lastSuccessfulSyncAt,
+        );
+      }
+      return null;
+    }
+    SyncStatusService.instance.markOnline();
+
     try {
       final backupService = GoogleDriveBackupService.instance;
       // Restore the previously connected account silently after app restart.
@@ -210,17 +287,6 @@ class GoogleDriveSyncService {
         return null;
       }
 
-      final hasLocalChanges =
-          await DatabaseHelper.instance.hasPendingSyncChanges();
-      final now = DateTime.now();
-      final minimumGap = hasLocalChanges
-          ? const Duration(seconds: 2)
-          : const Duration(seconds: 15);
-      if (_lastAttemptAt != null && now.difference(_lastAttemptAt!) < minimumGap) {
-        return null;
-      }
-      _lastAttemptAt = now;
-
       if (!hasLocalChanges) {
         DriveSession? probeSession;
         try {
@@ -228,7 +294,21 @@ class GoogleDriveSyncService {
           final files = await _listSyncFiles(probeSession.api);
           final signature = _remoteSignature(files);
           final prefs = await SharedPreferences.getInstance();
-          if (signature == prefs.getString(_remoteSignatureKey)) return null;
+          if (signature == prefs.getString(_remoteSignatureKey)) {
+            // The cloud is reachable and unchanged. There was no sync work to
+            // fail, so remove any stale generic failure from an older build.
+            await _clearGenericSyncFailure();
+            return null;
+          }
+        } catch (error) {
+          final kind = _classifySyncFailure(error);
+          // With no queued local changes, a generic Drive/network probe error
+          // must not become a persistent "Sync failed" banner. Account/auth
+          // failures remain important because the connected account needs help.
+          if (kind != SyncFailureKind.syncFailed) {
+            await _recordFailure(error, failureKind: kind);
+          }
+          return null;
         } finally {
           probeSession?.close();
         }
@@ -236,7 +316,12 @@ class GoogleDriveSyncService {
 
       return await syncNow(interactive: false);
     } catch (error) {
-      await _recordFailure(error);
+      // syncNow records real failures itself. This outer catch only protects
+      // pre-sync/account restoration work.
+      final kind = _classifySyncFailure(error);
+      if (hasLocalChanges || kind != SyncFailureKind.syncFailed) {
+        await _recordFailure(error, failureKind: kind);
+      }
       return null;
     }
   }

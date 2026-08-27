@@ -209,7 +209,7 @@ class SettingsScreen extends StatelessWidget {
           child: ListTile(
             leading: AviaryIcon(AviaryIconType.bird),
             title: Text('Aviary Pro'),
-            subtitle: Text('v1.4.16+25 · Persistent account & sync warnings'),
+            subtitle: Text('v1.4.17+26 · Offline-safe sync status'),
           ),
         ),
       ],

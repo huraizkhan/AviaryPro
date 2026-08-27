@@ -475,6 +475,12 @@ class _HomeScreenState extends State<HomeScreen>
             foreground = scheme.onPrimaryContainer;
             icon = Icons.cloud_done_outlined;
             break;
+          case SyncBannerKind.offline:
+            text = 'Offline · Changes will sync later';
+            background = scheme.surfaceContainerHigh;
+            foreground = scheme.onSurface;
+            icon = Icons.cloud_off_outlined;
+            break;
           case SyncBannerKind.failed:
             switch (state.failureKind ?? SyncFailureKind.syncFailed) {
               case SyncFailureKind.accountSigningFailed:

@@ -1,3 +1,11 @@
+# Aviary Pro v1.4.17+26
+
+- Automatic sync no longer reports `Sync failed` when there are no pending local changes and the cloud is unchanged.
+- Offline periods are treated as normal: queued edits stay local and one short `Offline · Changes will sync later` banner appears instead of a persistent red failure.
+- Repeated offline checks stay quiet until connectivity returns.
+- Account/authentication failures remain persistent red warnings.
+- A healthy no-change cloud probe clears stale generic sync failures left by older builds.
+
 # Aviary Pro v1.4.16+25
 
 - Keeps persistent red account/sync warnings above bottom navigation until the underlying problem is actually resolved.
