@@ -1,3 +1,14 @@
+# Aviary Pro v1.4.16+25
+
+- Keeps persistent red account/sync warnings above bottom navigation until the underlying problem is actually resolved.
+- Exact account warnings: `Account signing failed · Sign in again`, `Account disconnected unexpectedly · Reconnect`, and `Sync unavailable · Account authentication failed`.
+- Sync failure remains `Sync failed · Last sync <time>` and keeps the last successful sync timestamp.
+- Retrying sync does not temporarily hide an existing red failure; only a successful sync replaces it with the 2.5-second success banner.
+- A previously connected Google account is expected to remain available until it is manually removed.
+- Manual account removal is the explicit opt-out and clears the persistent account/sync warning state.
+- Persistent warning type is stored across app restarts.
+- No database schema migration and no data wipe.
+
 # Aviary Pro v1.4.15+24
 
 - Google Drive sign-in is now opt-in and no longer launches repeatedly when no account has been connected.

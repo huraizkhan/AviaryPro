@@ -47,6 +47,7 @@ class GoogleDriveSyncService {
   static const String _enabledKey = 'drive_sync_enabled';
   static const String _lastSyncAtKey = 'drive_sync_last_success_at';
   static const String _lastSyncErrorKey = 'drive_sync_last_error';
+  static const String _failureKindKey = 'drive_sync_failure_kind';
   static const String _remoteSignatureKey = 'drive_sync_remote_signature';
 
   bool _running = false;
@@ -73,16 +74,84 @@ class GoogleDriveSyncService {
     return prefs.getString(_lastSyncErrorKey);
   }
 
-  Future<void> _recordFailure(Object error) async {
+  Future<SyncFailureKind?> get lastFailureKind async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_failureKindKey);
+    if (stored == null) return null;
+    for (final kind in SyncFailureKind.values) {
+      if (kind.name == stored) return kind;
+    }
+    return null;
+  }
+
+  Future<void> _recordFailure(
+    Object error, {
+    SyncFailureKind? failureKind,
+  }) async {
+    final kind = failureKind ?? _classifySyncFailure(error);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastSyncErrorKey, error.toString());
+    await prefs.setString(_failureKindKey, kind.name);
     final lastSync = await lastSuccessfulSyncAt;
-    SyncStatusService.instance.showFailure(lastSuccessfulAt: lastSync);
+    SyncStatusService.instance.showFailure(
+      lastSuccessfulAt: lastSync,
+      failureKind: kind,
+    );
+  }
+
+  SyncFailureKind _classifySyncFailure(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('connect a google account first')) {
+      return SyncFailureKind.accountDisconnected;
+    }
+    if (message.contains('permission is required') ||
+        message.contains('authorization') ||
+        message.contains('authentication') ||
+        message.contains('unauthorized') ||
+        message.contains('invalid_grant') ||
+        message.contains('access token') ||
+        message.contains('401')) {
+      return SyncFailureKind.syncUnavailableAuth;
+    }
+    return SyncFailureKind.syncFailed;
+  }
+
+  Future<void> recordAccountRestoreFailure(String? authError) async {
+    final message = authError?.trim();
+    final isUnexpectedDisconnect = message == null ||
+        message.isEmpty ||
+        message.contains('Google account needs attention');
+    await _recordFailure(
+      message ?? 'Previously connected Google account is no longer available.',
+      failureKind: isUnexpectedDisconnect
+          ? SyncFailureKind.accountDisconnected
+          : SyncFailureKind.accountSigningFailed,
+    );
+  }
+
+  Future<void> recordAccountSigningFailure(Object error) async {
+    await _recordFailure(
+      error,
+      failureKind: SyncFailureKind.accountSigningFailed,
+    );
+  }
+
+  Future<void> clearResolvedAccountFailure() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_failureKindKey);
+    if (stored != SyncFailureKind.accountSigningFailed.name &&
+        stored != SyncFailureKind.accountDisconnected.name) {
+      return;
+    }
+    await prefs.remove(_lastSyncErrorKey);
+    await prefs.remove(_failureKindKey);
+    SyncStatusService.instance.clear();
   }
 
   Future<void> clearFailure() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_lastSyncErrorKey);
+    await prefs.remove(_failureKindKey);
     SyncStatusService.instance.clear();
   }
 
@@ -136,11 +205,7 @@ class GoogleDriveSyncService {
       }
       if (backupService.currentEmail == null) {
         if (await backupService.hasRememberedConnection) {
-          final authError = await backupService.lastAuthError;
-          await _recordFailure(
-            authError ??
-                'Google account needs attention. Sign in again from Backup & Sync.',
-          );
+          await recordAccountRestoreFailure(await backupService.lastAuthError);
         }
         return null;
       }
@@ -264,6 +329,7 @@ class GoogleDriveSyncService {
         _remoteSignature(settledFiles),
       );
       await prefs.remove(_lastSyncErrorKey);
+      await prefs.remove(_failureKindKey);
       SyncStatusService.instance.showSuccess(syncedAt);
 
       return SyncResult(

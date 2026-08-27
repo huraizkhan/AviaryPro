@@ -2,21 +2,30 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-
 enum SyncBannerKind { idle, syncing, success, failed }
+
+enum SyncFailureKind {
+  accountSigningFailed,
+  accountDisconnected,
+  syncFailed,
+  syncUnavailableAuth,
+}
 
 class SyncBannerState {
   const SyncBannerState({
     required this.kind,
     this.lastSuccessfulAt,
+    this.failureKind,
   });
 
   const SyncBannerState.idle()
       : kind = SyncBannerKind.idle,
-        lastSuccessfulAt = null;
+        lastSuccessfulAt = null,
+        failureKind = null;
 
   final SyncBannerKind kind;
   final DateTime? lastSuccessfulAt;
+  final SyncFailureKind? failureKind;
 }
 
 class SyncStatusService {
@@ -29,12 +38,23 @@ class SyncStatusService {
 
   Timer? _clearTimer;
 
-  void restorePersistentFailure({DateTime? lastSuccessfulAt}) {
-    showFailure(lastSuccessfulAt: lastSuccessfulAt);
+  void restorePersistentFailure({
+    DateTime? lastSuccessfulAt,
+    SyncFailureKind failureKind = SyncFailureKind.syncFailed,
+  }) {
+    showFailure(
+      lastSuccessfulAt: lastSuccessfulAt,
+      failureKind: failureKind,
+    );
   }
 
   void showSyncing({DateTime? lastSuccessfulAt}) {
     _clearTimer?.cancel();
+
+    // A retry must not hide an existing red warning. The warning remains until
+    // the retry actually succeeds (or the user explicitly removes the account).
+    if (state.value.kind == SyncBannerKind.failed) return;
+
     state.value = SyncBannerState(
       kind: SyncBannerKind.syncing,
       lastSuccessfulAt: lastSuccessfulAt,
@@ -54,11 +74,15 @@ class SyncStatusService {
     });
   }
 
-  void showFailure({DateTime? lastSuccessfulAt}) {
+  void showFailure({
+    DateTime? lastSuccessfulAt,
+    SyncFailureKind failureKind = SyncFailureKind.syncFailed,
+  }) {
     _clearTimer?.cancel();
     state.value = SyncBannerState(
       kind: SyncBannerKind.failed,
       lastSuccessfulAt: lastSuccessfulAt,
+      failureKind: failureKind,
     );
   }
 

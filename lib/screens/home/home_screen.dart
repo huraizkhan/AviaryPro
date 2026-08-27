@@ -98,13 +98,26 @@ class _HomeScreenState extends State<HomeScreen>
     if (previousError != null && previousError.trim().isNotEmpty) {
       SyncStatusService.instance.restorePersistentFailure(
         lastSuccessfulAt: await syncService.lastSuccessfulSyncAt,
+        failureKind:
+            await syncService.lastFailureKind ?? SyncFailureKind.syncFailed,
       );
     }
 
-    try {
-      await GoogleDriveBackupService.instance.restorePreviousSession();
-    } catch (_) {
-      // A missing or expired lightweight session is handled by Backup & Sync.
+    final backupService = GoogleDriveBackupService.instance;
+    final rememberedConnection = await backupService.hasRememberedConnection;
+    if (rememberedConnection) {
+      try {
+        await backupService.restorePreviousSession();
+        if (backupService.currentEmail == null) {
+          await syncService.recordAccountRestoreFailure(
+            await backupService.lastAuthError,
+          );
+        } else {
+          await syncService.clearResolvedAccountFailure();
+        }
+      } catch (error) {
+        await syncService.recordAccountSigningFailure(error);
+      }
     }
     await _runCloudMaintenance(
       bootstrapEmptyDevice: true,
@@ -463,12 +476,28 @@ class _HomeScreenState extends State<HomeScreen>
             icon = Icons.cloud_done_outlined;
             break;
           case SyncBannerKind.failed:
-            text = lastSync == null
-                ? 'Sync failed · No successful sync yet'
-                : 'Sync failed · Last sync ${_syncTimeFormat.format(lastSync)}';
+            switch (state.failureKind ?? SyncFailureKind.syncFailed) {
+              case SyncFailureKind.accountSigningFailed:
+                text = 'Account signing failed · Sign in again';
+                icon = Icons.account_circle_outlined;
+                break;
+              case SyncFailureKind.accountDisconnected:
+                text = 'Account disconnected unexpectedly · Reconnect';
+                icon = Icons.link_off;
+                break;
+              case SyncFailureKind.syncUnavailableAuth:
+                text = 'Sync unavailable · Account authentication failed';
+                icon = Icons.no_accounts_outlined;
+                break;
+              case SyncFailureKind.syncFailed:
+                text = lastSync == null
+                    ? 'Sync failed · No successful sync yet'
+                    : 'Sync failed · Last sync ${_syncTimeFormat.format(lastSync)}';
+                icon = Icons.sync_problem;
+                break;
+            }
             background = Colors.red.shade700;
             foreground = Colors.white;
-            icon = Icons.sync_problem;
             break;
           case SyncBannerKind.idle:
             return const SizedBox.shrink();

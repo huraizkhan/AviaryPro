@@ -84,12 +84,20 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
   }
 
   Future<void> _connect() async {
+    final wasRemembered = await _backupService.hasRememberedConnection;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      _email = await _backupService.connect();
+      try {
+        _email = await _backupService.connect();
+      } catch (error) {
+        if (wasRemembered) {
+          await _syncService.recordAccountSigningFailure(error);
+        }
+        rethrow;
+      }
       _rememberedEmail = _email;
       _authError = null;
       await _performSync(interactive: true);
