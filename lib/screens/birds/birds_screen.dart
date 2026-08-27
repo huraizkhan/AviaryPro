@@ -6,6 +6,7 @@ import '../../database/database_helper.dart';
 import '../../providers/bird_provider.dart';
 import '../../providers/card_customization_provider.dart';
 import '../../ui/aviary_design.dart';
+import '../../ui/list_grid_toggle.dart';
 import '../cages/cage_details_screen.dart';
 import 'add_bird_screen.dart';
 import 'bird_details_screen.dart';
@@ -33,6 +34,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
 
   String countMode = 'Mutation';
   bool _countExpanded = false;
+  bool gridView = false;
 
   bool selectionMode = false;
   final Set<String> selectedBirdIds = <String>{};
@@ -43,6 +45,7 @@ class _BirdsScreenState extends State<BirdsScreen> {
     super.initState();
     _loadCages();
     _loadCountMode();
+    _loadViewMode();
   }
 
   Future<void> _loadCountMode() async {
@@ -58,6 +61,20 @@ class _BirdsScreenState extends State<BirdsScreen> {
     setState(() => countMode = value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('all_birds_count_mode', value);
+  }
+
+
+  Future<void> _loadViewMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool('birds_grid_view') ?? false;
+    if (!mounted) return;
+    setState(() => gridView = saved);
+  }
+
+  Future<void> _setGridView(bool value) async {
+    setState(() => gridView = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('birds_grid_view', value);
   }
 
   Future<void> _loadCages() async {
@@ -370,6 +387,104 @@ class _BirdsScreenState extends State<BirdsScreen> {
     );
   }
 
+  Widget _birdCageCard(Map<String, dynamic> cage, {required bool compact}) {
+    final birdCount = (cage['birdCount'] as num?)?.toInt() ?? 0;
+    final pairCount = (cage['pairCount'] as num?)?.toInt() ?? 0;
+    final eggs = (cage['activeEggCount'] as num?)?.toInt() ?? 0;
+    final chicks = (cage['chicksInNest'] as num?)?.toInt() ?? 0;
+    final physicalName = cage['identityMode'] == 'series'
+        ? cage['physicalName']?.toString().trim() ?? ''
+        : '';
+    final details = [
+      if (physicalName.isNotEmpty) physicalName,
+      '$birdCount birds',
+      '$pairCount pairs',
+      if (eggs > 0) '$eggs eggs',
+      if (chicks > 0) '$chicks chicks',
+    ].join(' · ');
+
+    Future<void> openCage() async {
+      final birdProvider = context.read<BirdProvider>();
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CageDetailsScreen(cageId: cage['id'].toString()),
+        ),
+      );
+      if (!mounted) return;
+      await _loadCages();
+      await birdProvider.loadBirds();
+    }
+
+    if (!compact) {
+      return Card(
+        color: aviaryCardSurface(context, tint: _cageTint(cage)),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: CircleAvatar(
+            backgroundColor: aviaryAvatarSurface(context),
+            child: const AviaryIcon(
+              AviaryIconType.cage,
+              color: AviaryColors.cages,
+            ),
+          ),
+          title: Text(
+            cage['identifier']?.toString() ?? 'Cage',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text(details),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: openCage,
+        ),
+      );
+    }
+
+    return Card(
+      color: aviaryCardSurface(context, tint: _cageTint(cage)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: openCage,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 19,
+                    backgroundColor: aviaryAvatarSurface(context),
+                    child: const AviaryIcon(
+                      AviaryIconType.cage,
+                      color: AviaryColors.cages,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      cage['identifier']?.toString() ?? 'Cage',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                details,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCages() {
     if (loadingCages) {
       return const Padding(
@@ -383,57 +498,39 @@ class _BirdsScreenState extends State<BirdsScreen> {
         child: Center(child: Text('No cages currently contain birds')),
       );
     }
-    return Column(
-      children: cageSummary.map((cage) {
-        final birdCount = (cage['birdCount'] as num?)?.toInt() ?? 0;
-        final pairCount = (cage['pairCount'] as num?)?.toInt() ?? 0;
-        final eggs = (cage['activeEggCount'] as num?)?.toInt() ?? 0;
-        final chicks = (cage['chicksInNest'] as num?)?.toInt() ?? 0;
-        final physicalLabel = cage['identityMode'] == 'series' &&
-                (cage['physicalName']?.toString() ?? '').isNotEmpty
-            ? '${cage['physicalName']}\n'
-            : '';
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Card(
-            color: aviaryCardSurface(context, tint: _cageTint(cage)),
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              leading: CircleAvatar(
-                backgroundColor: aviaryAvatarSurface(context),
-                child: const AviaryIcon(
-                  AviaryIconType.cage,
-                  color: AviaryColors.cages,
-                ),
-              ),
-              title: Text(
-                cage['identifier']?.toString() ?? 'Cage',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(
-                '$physicalLabel$birdCount birds · $pairCount pairs'
-                '${eggs > 0 ? ' · $eggs eggs' : ''}'
-                '${chicks > 0 ? ' · $chicks chicks' : ''}',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final birdProvider = context.read<BirdProvider>();
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        CageDetailsScreen(cageId: cage['id'].toString()),
-                  ),
-                );
-                if (!mounted) return;
-                await _loadCages();
-                await birdProvider.loadBirds();
-              },
-            ),
-          ),
+
+    if (!gridView) {
+      return Column(
+        children: cageSummary
+            .map((cage) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _birdCageCard(cage, compact: false),
+                ))
+            .toList(),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 10.0;
+        final columns = constraints.maxWidth >= 800
+            ? 3
+            : constraints.maxWidth < 360
+                ? 1
+                : 2;
+        final itemWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cageSummary
+              .map((cage) => SizedBox(
+                    width: itemWidth,
+                    child: _birdCageCard(cage, compact: true),
+                  ))
+              .toList(),
         );
-      }).toList(),
+      },
     );
   }
 
@@ -783,6 +880,151 @@ class _BirdsScreenState extends State<BirdsScreen> {
     );
   }
 
+  Widget _birdCard(Map<String, dynamic> bird, {required bool compact}) {
+    final ring = bird['ringNumber']?.toString() ?? 'No ring';
+    final name = bird['name']?.toString().trim() ?? '';
+    final gender = bird['gender']?.toString() ?? 'Unknown';
+    final selected = selectedBirdIds.contains(bird['id'].toString());
+    final title = name.isEmpty ? ring : '$ring — $name';
+
+    Widget fields() {
+      final prefs = context.watch<CardCustomizationProvider>();
+      return Wrap(
+        children: prefs.birdFieldOrder
+            .where((id) => prefs.birdFieldStyle(id) != 'hidden')
+            .map((id) => _birdCardField(bird, id, prefs.birdFieldStyle(id)))
+            .toList(),
+      );
+    }
+
+    void onTap() {
+      if (selectionMode) {
+        _toggleSelection(bird);
+      } else {
+        _openDetails(context, bird);
+      }
+    }
+
+    void onLongPress() {
+      if (selectionMode) {
+        _toggleSelection(bird);
+      } else {
+        _editBird(context, bird);
+      }
+    }
+
+    if (!compact) {
+      return Card(
+        color: selected
+            ? Theme.of(context).colorScheme.primaryContainer
+            : aviaryCardSurface(context, tint: _birdTint(bird)),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          onLongPress: onLongPress,
+          onTap: onTap,
+          leading: selectionMode
+              ? Checkbox(
+                  value: selected,
+                  onChanged: (_) => _toggleSelection(bird),
+                )
+              : CircleAvatar(
+                  backgroundColor: aviaryAvatarSurface(context),
+                  child: const AviaryIcon(AviaryIconType.bird),
+                ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: birdGenderTextColor(gender),
+            ),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: fields(),
+          ),
+          trailing: selectionMode
+              ? null
+              : PopupMenuButton<String>(
+                  tooltip: 'Bird options',
+                  onSelected: (value) {
+                    if (value == 'edit') _editBird(context, bird);
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Edit'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      );
+    }
+
+    return Card(
+      color: selected
+          ? Theme.of(context).colorScheme.primaryContainer
+          : aviaryCardSurface(context, tint: _birdTint(bird)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.all(11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (selectionMode)
+                    Checkbox(
+                      value: selected,
+                      onChanged: (_) => _toggleSelection(bird),
+                      visualDensity: VisualDensity.compact,
+                    )
+                  else
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: aviaryAvatarSurface(context),
+                      child: const AviaryIcon(AviaryIconType.bird, size: 19),
+                    ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: birdGenderTextColor(gender),
+                      ),
+                    ),
+                  ),
+                  if (!selectionMode)
+                    PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      tooltip: 'Bird options',
+                      onSelected: (value) {
+                        if (value == 'edit') _editBird(context, bird);
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              fields(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBirds(List<Map<String, dynamic>> birdList) {
     if (birdList.isEmpty) {
       return const Padding(
@@ -790,79 +1032,39 @@ class _BirdsScreenState extends State<BirdsScreen> {
         child: Center(child: Text('No birds match the selected filters')),
       );
     }
-    return Column(
-      children: birdList.map((bird) {
-        final ring = bird['ringNumber']?.toString() ?? 'No ring';
-        final name = bird['name']?.toString().trim() ?? '';
-        final gender = bird['gender']?.toString() ?? 'Unknown';
-        final selected = selectedBirdIds.contains(bird['id'].toString());
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Card(
-            color: selected
-                ? Theme.of(context).colorScheme.primaryContainer
-                : aviaryCardSurface(context, tint: _birdTint(bird)),
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              onLongPress: selectionMode
-                  ? () => _toggleSelection(bird)
-                  : () => _editBird(context, bird),
-              onTap: selectionMode
-                  ? () => _toggleSelection(bird)
-                  : () => _openDetails(context, bird),
-              leading: selectionMode
-                  ? Checkbox(
-                      value: selected,
-                      onChanged: (_) => _toggleSelection(bird),
-                    )
-                  : CircleAvatar(
-                      backgroundColor: aviaryAvatarSurface(context),
-                      child: const AviaryIcon(AviaryIconType.bird),
-                    ),
-              title: Text(
-                name.isEmpty ? ring : '$ring — $name',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: birdGenderTextColor(gender),
-                ),
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: Builder(
-                  builder: (context) {
-                    final prefs = context.watch<CardCustomizationProvider>();
-                    return Wrap(
-                      children: prefs.birdFieldOrder
-                          .where((id) => prefs.birdFieldStyle(id) != 'hidden')
-                          .map((id) => _birdCardField(bird, id, prefs.birdFieldStyle(id)))
-                          .toList(),
-                    );
-                  },
-                ),
-              ),
-              trailing: selectionMode
-                  ? null
-                  : PopupMenuButton<String>(
-                      tooltip: 'Bird options',
-                      onSelected: (value) {
-                        if (value == 'edit') _editBird(context, bird);
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'edit',
-                          child: ListTile(
-                            leading: Icon(Icons.edit_outlined),
-                            title: Text('Edit'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
+
+    if (!gridView) {
+      return Column(
+        children: birdList
+            .map((bird) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _birdCard(bird, compact: false),
+                ))
+            .toList(),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 10.0;
+        final columns = constraints.maxWidth >= 800
+            ? 3
+            : constraints.maxWidth < 360
+                ? 1
+                : 2;
+        final itemWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: birdList
+              .map((bird) => SizedBox(
+                    width: itemWidth,
+                    child: _birdCard(bird, compact: true),
+                  ))
+              .toList(),
         );
-      }).toList(),
+      },
     );
   }
 
@@ -913,6 +1115,14 @@ class _BirdsScreenState extends State<BirdsScreen> {
             selected: view,
             accent: AviaryColors.birds,
             onChanged: (value) => setState(() => view = value),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: AviaryListGridToggle(
+              gridView: gridView,
+              onChanged: _setGridView,
+            ),
           ),
           const SizedBox(height: 12),
           if (view == BirdListView.byCage)

@@ -24,6 +24,7 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
 
   bool _busy = true;
   bool _syncEnabled = false;
+  bool _hasRememberedConnection = false;
   String? _email;
   String? _rememberedEmail;
   String? _authError;
@@ -61,6 +62,7 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
 
       final rememberedConnection =
           await _backupService.hasRememberedConnection;
+      _hasRememberedConnection = rememberedConnection;
       if (_backupService.currentEmail == null && rememberedConnection) {
         await _backupService.restorePreviousSession();
       }
@@ -99,6 +101,7 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
         rethrow;
       }
       _rememberedEmail = _email;
+      _hasRememberedConnection = true;
       _authError = null;
       await _performSync(interactive: true);
       await _syncService.setEnabled(true);
@@ -266,11 +269,45 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
     setState(() {
       _email = null;
       _rememberedEmail = null;
+      _hasRememberedConnection = false;
       _authError = null;
       _syncEnabled = false;
       _backups = const [];
       _error = null;
     });
+  }
+
+  Future<void> _confirmRemoveAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove Google account?'),
+        content: Text(
+          'Remove ${_rememberedEmail ?? 'this Google account'} from Aviary Pro? '
+          'Cloud sync and Drive backups will stay off until you connect an '
+          'account again. Local aviary data will not be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove Account'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _busy = true);
+    await _disconnect();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google account removed from Aviary Pro.')),
+    );
   }
 
   Future<void> _setSyncEnabled(bool value) async {
@@ -496,7 +533,8 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    _email == null && _rememberedEmail != null
+                                    _email == null &&
+                                            _hasRememberedConnection
                                         ? 'Google account needs attention'
                                         : _lastSyncAt == null
                                             ? 'No successful sync yet'
@@ -509,17 +547,33 @@ class _GoogleDriveBackupScreenState extends State<GoogleDriveBackupScreen> {
                         ),
                         const SizedBox(height: 14),
                         if (_email == null)
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              onPressed: _busy ? null : _connect,
-                              icon: const Icon(Icons.login),
-                              label: Text(
-                                _rememberedEmail == null
-                                    ? 'Connect Google Drive'
-                                    : 'Reconnect Google Drive',
+                          Column(
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: _busy ? null : _connect,
+                                  icon: const Icon(Icons.login),
+                                  label: Text(
+                                    !_hasRememberedConnection
+                                        ? 'Connect Google Drive'
+                                        : 'Reconnect Google Drive',
+                                  ),
+                                ),
                               ),
-                            ),
+                              if (_hasRememberedConnection) ...[
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        _busy ? null : _confirmRemoveAccount,
+                                    icon: const Icon(Icons.delete_outline),
+                                    label: const Text('Remove Account'),
+                                  ),
+                                ),
+                              ],
+                            ],
                           )
                         else
                           Row(

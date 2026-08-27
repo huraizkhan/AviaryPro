@@ -234,8 +234,15 @@ class GoogleDriveBackupService {
   }
 
   Future<void> signOut() async {
-    await _initialize();
-    await _signIn.signOut();
+    // Explicit removal must always clear Aviary Pro's remembered connection,
+    // even if the Google session itself is already broken.
+    try {
+      await _initialize();
+      await _signIn.signOut();
+    } catch (_) {
+      // Local removal is authoritative; a stale Google session must not trap
+      // the user in an account-needs-attention state.
+    }
     _account = null;
     _restoreAttempted = false;
     final prefs = await SharedPreferences.getInstance();

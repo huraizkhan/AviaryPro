@@ -1,3 +1,44 @@
+# Aviary Pro v1.4.19+28
+
+## Pair and breeding list fix
+
+- Reworked the pair-list query to avoid the expensive egg/chick join that could leave Pairs and Breeding showing an endless spinner.
+- The Breeding screen now has a bounded loader: a failed/slow load exits to a Retry state instead of spinning forever.
+- Tabs are renamed to **Pairs** and **Breeding**.
+- **Pairs** shows every current pair.
+- **Breeding** shows only pairs whose automatic stage is Laying, Incubating, Hatching, or Chicks.
+- Pair cards continue to use automatic Bonding/Laying/Incubating/Hatching/Chicks/Resting status.
+- Active clutch selection now gets the active clutch ID directly from the pair query.
+
+## List / Grid views
+
+- Added a consistent List / Grid toggle to Birds, Cages, Pairs, and Breeding.
+- Each screen remembers its own choice.
+- Birds grid keeps the configurable bird-card fields.
+- Bird-screen cage cards also follow the Birds view mode.
+- Cages are naturally sorted (Cage1, Cage2, ... Cage12) in both layouts.
+
+## Included from v1.4.18
+
+- Persistent red account/sync warnings can be dismissed with **×** for the current app session only.
+- If the problem still exists after restarting Aviary Pro, the warning returns.
+- Google account attention state includes **Remove Account** with confirmation.
+
+No database schema migration is introduced by v1.4.19. Existing data and signing compatibility are preserved.
+
+---
+
+# Aviary Pro v1.4.18+27
+
+- Persistent red account/sync warnings now have an × button above the bottom navigation.
+- × hides the current red warning only for the current app session; the stored problem is not marked resolved.
+- If the problem still exists on the next app start, the warning appears again, including `Sync failed · Last sync <time>`.
+- Successful sync/account recovery still clears the underlying warning normally.
+- Account-needs-attention state now offers `Remove Account` below `Reconnect Google Drive`.
+- Removing an account asks for confirmation, stops sync/Drive warnings for that intentionally removed account, and never deletes local aviary data.
+- Explicit account removal remains possible even when the saved Google session is already broken.
+- No database schema migration and no data wipe.
+
 # Aviary Pro v1.4.17+26
 
 - Automatic sync no longer reports `Sync failed` when there are no pending local changes and the cloud is unchanged.

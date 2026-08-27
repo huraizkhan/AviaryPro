@@ -545,6 +545,19 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                     ),
+                    if (state.kind == SyncBannerKind.failed)
+                      IconButton(
+                        tooltip: 'Hide until next app start',
+                        onPressed: SyncStatusService.instance
+                            .dismissFailureForSession,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 34,
+                          height: 34,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(Icons.close, size: 19, color: foreground),
+                      ),
                   ],
                 ),
               ),

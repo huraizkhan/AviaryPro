@@ -38,6 +38,7 @@ class SyncStatusService {
 
   Timer? _clearTimer;
   bool _offlineAnnounced = false;
+  bool _failureDismissedForSession = false;
 
   void restorePersistentFailure({
     DateTime? lastSuccessfulAt,
@@ -53,6 +54,10 @@ class SyncStatusService {
     _clearTimer?.cancel();
     _offlineAnnounced = false;
 
+    // If the user dismissed a red warning for this app session, background
+    // retries stay quiet. A real success may still show the success banner.
+    if (_failureDismissedForSession) return;
+
     // A retry must not hide an existing red warning. The warning remains until
     // the retry actually succeeds (or the user explicitly removes the account).
     if (state.value.kind == SyncBannerKind.failed) return;
@@ -66,6 +71,7 @@ class SyncStatusService {
   void showSuccess(DateTime syncedAt) {
     _clearTimer?.cancel();
     _offlineAnnounced = false;
+    _failureDismissedForSession = false;
     state.value = SyncBannerState(
       kind: SyncBannerKind.success,
       lastSuccessfulAt: syncedAt,
@@ -78,8 +84,13 @@ class SyncStatusService {
   }
 
   void showOffline({DateTime? lastSuccessfulAt}) {
-    // Never replace a persistent red warning with a temporary offline notice.
-    if (state.value.kind == SyncBannerKind.failed || _offlineAnnounced) return;
+    // Never replace a persistent/dismissed red warning with a temporary
+    // offline notice during the same app session.
+    if (_failureDismissedForSession ||
+        state.value.kind == SyncBannerKind.failed ||
+        _offlineAnnounced) {
+      return;
+    }
 
     _clearTimer?.cancel();
     _offlineAnnounced = true;
@@ -103,6 +114,7 @@ class SyncStatusService {
     SyncFailureKind failureKind = SyncFailureKind.syncFailed,
   }) {
     _clearTimer?.cancel();
+    if (_failureDismissedForSession) return;
     state.value = SyncBannerState(
       kind: SyncBannerKind.failed,
       lastSuccessfulAt: lastSuccessfulAt,
@@ -110,8 +122,16 @@ class SyncStatusService {
     );
   }
 
+  void dismissFailureForSession() {
+    if (state.value.kind != SyncBannerKind.failed) return;
+    _clearTimer?.cancel();
+    _failureDismissedForSession = true;
+    state.value = const SyncBannerState.idle();
+  }
+
   void clear() {
     _clearTimer?.cancel();
+    _failureDismissedForSession = false;
     state.value = const SyncBannerState.idle();
   }
 }

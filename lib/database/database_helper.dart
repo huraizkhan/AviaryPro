@@ -4137,61 +4137,98 @@ class DatabaseHelper {
         cage.id AS cageId,
         cage.identifier AS cageIdentifier,
         species.name AS speciesName,
-        COUNT(DISTINCT clutch.id) AS totalClutchCount,
-        COUNT(DISTINCT CASE
-          WHEN clutch.status = 'Active' THEN clutch.id
-        END) AS activeClutchCount,
         (
-          SELECT COALESCE(SUM(activeClutch.expectedEggs), 0)
-          FROM clutches activeClutch
-          WHERE activeClutch.pairId = p.id
-            AND activeClutch.status = 'Active'
+          SELECT COUNT(*)
+          FROM clutches c
+          WHERE c.pairId = p.id
+        ) AS totalClutchCount,
+        (
+          SELECT COUNT(*)
+          FROM clutches c
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+        ) AS activeClutchCount,
+        (
+          SELECT MAX(c.id)
+          FROM clutches c
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+        ) AS activeClutchId,
+        (
+          SELECT COALESCE(SUM(c.expectedEggs), 0)
+          FROM clutches c
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
         ) AS expectedEggCount,
-        COUNT(DISTINCT CASE
-          WHEN clutch.status = 'Active'
-            AND egg.status IN ('Incubating', 'Fertile') THEN egg.id
-        END) AS activeEggCount,
-        COUNT(DISTINCT CASE
-          WHEN clutch.status = 'Active'
+        (
+          SELECT COUNT(*)
+          FROM eggs e
+          INNER JOIN clutches c
+            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+            AND e.status IN ('Incubating', 'Fertile')
+        ) AS activeEggCount,
+        (
+          SELECT COUNT(*)
+          FROM birds chick
+          INNER JOIN clutches c ON c.id = chick.nestClutchId
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
             AND chick.leftNestDate IS NULL
-            AND COALESCE(chick.active, 1) = 1 THEN chick.id
-        END) AS chicksInNest,
-        COUNT(DISTINCT CASE
-          WHEN clutch.status = 'Active'
-            AND egg.status IN ('Incubating', 'Fertile') THEN egg.id
-        END) AS unresolvedEggCount,
-        COUNT(DISTINCT CASE
-          WHEN clutch.status = 'Active'
-            AND egg.status = 'Hatched' THEN egg.id
-        END) AS hatchedEggCount,
-        COUNT(DISTINCT CASE
-          WHEN clutch.status = 'Active' THEN egg.id
-        END) AS currentEggCount,
-        MAX(CASE
-          WHEN clutch.status = 'Active' THEN egg.laidDate
-        END) AS latestEggDate,
-        MIN(CASE
-          WHEN clutch.status = 'Active'
-            AND egg.status IN ('Incubating', 'Fertile')
-          THEN egg.expectedHatchDate
-        END) AS nextExpectedHatchDate
+            AND COALESCE(chick.active, 1) = 1
+        ) AS chicksInNest,
+        (
+          SELECT COUNT(*)
+          FROM eggs e
+          INNER JOIN clutches c
+            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+            AND e.status IN ('Incubating', 'Fertile')
+        ) AS unresolvedEggCount,
+        (
+          SELECT COUNT(*)
+          FROM eggs e
+          INNER JOIN clutches c
+            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+            AND e.status = 'Hatched'
+        ) AS hatchedEggCount,
+        (
+          SELECT COUNT(*)
+          FROM eggs e
+          INNER JOIN clutches c
+            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+        ) AS currentEggCount,
+        (
+          SELECT MAX(e.laidDate)
+          FROM eggs e
+          INNER JOIN clutches c
+            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+        ) AS latestEggDate,
+        (
+          SELECT MIN(e.expectedHatchDate)
+          FROM eggs e
+          INNER JOIN clutches c
+            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
+          WHERE c.pairId = p.id
+            AND c.status = 'Active'
+            AND e.status IN ('Incubating', 'Fertile')
+        ) AS nextExpectedHatchDate
       FROM pairs p
       INNER JOIN birds male ON male.id = p.maleBirdId
       INNER JOIN birds female ON female.id = p.femaleBirdId
       LEFT JOIN cages cage ON cage.id = male.cageId
       LEFT JOIN species species ON species.id = male.speciesId
-      LEFT JOIN clutches clutch ON clutch.pairId = p.id
-      LEFT JOIN eggs egg
-        ON COALESCE(egg.currentClutchId, egg.clutchId) = clutch.id
-      LEFT JOIN birds chick ON chick.nestClutchId = clutch.id
       WHERE p.endedAt IS NULL
-        ${activeOnly ? "AND p.breedingStatus = 'Active'" : ""}
-      GROUP BY p.id
-      ORDER BY
-        CASE WHEN p.endedAt IS NULL THEN 0 ELSE 1 END,
-        CASE WHEN COUNT(DISTINCT CASE WHEN clutch.status = 'Active' THEN clutch.id END) = 0
-          THEN 1 ELSE 0 END,
-        cage.identifier COLLATE NOCASE ASC,
+        ${activeOnly ? "AND EXISTS (SELECT 1 FROM clutches c WHERE c.pairId = p.id AND c.status = 'Active')" : ""}
+      ORDER BY cage.identifier COLLATE NOCASE ASC,
         p.identifier COLLATE NOCASE ASC
     ''');
   }
