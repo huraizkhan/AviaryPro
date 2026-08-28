@@ -74,22 +74,33 @@ class _BreedingScreenState extends State<BreedingScreen> {
     }
 
     try {
-      final results = await Future.wait<dynamic>([
-        DatabaseHelper.instance.getBreedingSummary(),
-        DatabaseHelper.instance.getBreedingPairs(),
-      ]).timeout(const Duration(seconds: 12));
-
-      final summaryResult = results[0] as Map<String, int>;
-      final pairResult = results[1] as List<Map<String, dynamic>>;
+      final pairResult = await DatabaseHelper.instance
+          .getBreedingPairs()
+          .timeout(const Duration(seconds: 12));
       pairResult.sort((a, b) => _naturalCompare(
             a['cageIdentifier']?.toString() ?? '',
             b['cageIdentifier']?.toString() ?? '',
           ));
 
       final activeCount = pairResult.where(_isBreedingPair).length;
+      final totalEggs = pairResult.fold<int>(
+        0,
+        (sum, pair) =>
+            sum + ((pair['activeEggCount'] as num?)?.toInt() ?? 0),
+      );
+      final chicksInNest = pairResult.fold<int>(
+        0,
+        (sum, pair) => sum + ((pair['chicksInNest'] as num?)?.toInt() ?? 0),
+      );
+
       if (!mounted) return;
       setState(() {
-        summary = {...summaryResult, 'activePairs': activeCount};
+        summary = {
+          'allPairs': pairResult.length,
+          'activePairs': activeCount,
+          'totalEggs': totalEggs,
+          'chicksInNest': chicksInNest,
+        };
         pairs = pairResult;
         loading = false;
       });
@@ -108,7 +119,7 @@ class _BreedingScreenState extends State<BreedingScreen> {
   }
 
   bool _isBreedingPair(Map<String, dynamic> pair) {
-    return const {'Laying', 'Incubating', 'Hatching', 'Chicks'}
+    return const {'Laying', 'Incubating', 'Hatching', 'Chicks', 'Breeding'}
         .contains(_stage(pair));
   }
 
@@ -225,6 +236,14 @@ class _BreedingScreenState extends State<BreedingScreen> {
   }
 
   String _stage(Map<String, dynamic> pair) {
+    final metricsUnavailable =
+        (pair['metricsUnavailable'] as num?)?.toInt() == 1;
+    if (metricsUnavailable) {
+      return pair['breedingStatus']?.toString() == 'Active'
+          ? 'Breeding'
+          : 'Resting';
+    }
+
     final activeClutches = (pair['activeClutchCount'] as num?)?.toInt() ?? 0;
     final allClutches = (pair['totalClutchCount'] as num?)?.toInt() ?? 0;
     final chicks = (pair['chicksInNest'] as num?)?.toInt() ?? 0;

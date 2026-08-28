@@ -25,7 +25,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 15,
+      version: 16,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -1303,9 +1303,10 @@ class DatabaseHelper {
   }
 
   Future<bool> birdRingNumberExists(
-      String ringNumber, {
-        String? excludeBirdId,
-      }) async {
+    String ringNumber, {
+    required String speciesId,
+    String? excludeBirdId,
+  }) async {
     final db = await database;
     final clean = ringNumber.trim();
     if (clean.isEmpty) return false;
@@ -1322,9 +1323,9 @@ class DatabaseHelper {
             )
           )''';
     final where = excludeBirdId == null
-        ? exactOrNumeric
-        : '($exactOrNumeric) AND id != ?';
-    final args = <Object?>[clean];
+        ? 'speciesId = ? AND ($exactOrNumeric)'
+        : 'speciesId = ? AND ($exactOrNumeric) AND id != ?';
+    final args = <Object?>[speciesId, clean];
     if (numeric != null) args.add(numeric);
     if (excludeBirdId != null) args.add(excludeBirdId);
 
@@ -1394,11 +1395,13 @@ class DatabaseHelper {
   }
 
   Future<void> _createUniqueIndexes(Database db) async {
+    await db.execute('DROP INDEX IF EXISTS idx_birds_ring_unique');
+    await db.execute('DROP INDEX IF EXISTS idx_birds_ring_species_unique');
     await db.execute('''
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_birds_ring_unique
-    ON birds(ringNumber COLLATE NOCASE)
-    WHERE TRIM(ringNumber) <> ''
-  ''');
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_birds_ring_species_unique
+      ON birds(COALESCE(speciesId, ''), LOWER(TRIM(ringNumber)))
+      WHERE TRIM(ringNumber) <> ''
+    ''');
 
     await db.execute('DROP INDEX IF EXISTS idx_cages_identifier_unique');
     await db.execute('''
@@ -1941,6 +1944,10 @@ class DatabaseHelper {
       await _createWorkflowTables(db);
       await _createSyncInfrastructure(db);
       await _createSyncTriggers(db);
+    }
+
+    if (oldVersion < 16) {
+      await _createUniqueIndexes(db);
     }
   }
 
@@ -4116,8 +4123,14 @@ class DatabaseHelper {
     bool activeOnly = false,
   }) async {
     final db = await database;
+    final hasCurrentClutchId =
+        await _columnExists(db, 'eggs', 'currentClutchId');
+    final hasExpectedEggs =
+        await _columnExists(db, 'clutches', 'expectedEggs');
+    final hasNestClutchId =
+        await _columnExists(db, 'birds', 'nestClutchId');
 
-    return db.rawQuery('''
+    final baseRows = await db.rawQuery('''
       SELECT
         p.id,
         p.identifier,
@@ -4136,91 +4149,7 @@ class DatabaseHelper {
         female.gender AS femaleGender,
         cage.id AS cageId,
         cage.identifier AS cageIdentifier,
-        species.name AS speciesName,
-        (
-          SELECT COUNT(*)
-          FROM clutches c
-          WHERE c.pairId = p.id
-        ) AS totalClutchCount,
-        (
-          SELECT COUNT(*)
-          FROM clutches c
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-        ) AS activeClutchCount,
-        (
-          SELECT MAX(c.id)
-          FROM clutches c
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-        ) AS activeClutchId,
-        (
-          SELECT COALESCE(SUM(c.expectedEggs), 0)
-          FROM clutches c
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-        ) AS expectedEggCount,
-        (
-          SELECT COUNT(*)
-          FROM eggs e
-          INNER JOIN clutches c
-            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-            AND e.status IN ('Incubating', 'Fertile')
-        ) AS activeEggCount,
-        (
-          SELECT COUNT(*)
-          FROM birds chick
-          INNER JOIN clutches c ON c.id = chick.nestClutchId
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-            AND chick.leftNestDate IS NULL
-            AND COALESCE(chick.active, 1) = 1
-        ) AS chicksInNest,
-        (
-          SELECT COUNT(*)
-          FROM eggs e
-          INNER JOIN clutches c
-            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-            AND e.status IN ('Incubating', 'Fertile')
-        ) AS unresolvedEggCount,
-        (
-          SELECT COUNT(*)
-          FROM eggs e
-          INNER JOIN clutches c
-            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-            AND e.status = 'Hatched'
-        ) AS hatchedEggCount,
-        (
-          SELECT COUNT(*)
-          FROM eggs e
-          INNER JOIN clutches c
-            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-        ) AS currentEggCount,
-        (
-          SELECT MAX(e.laidDate)
-          FROM eggs e
-          INNER JOIN clutches c
-            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-        ) AS latestEggDate,
-        (
-          SELECT MIN(e.expectedHatchDate)
-          FROM eggs e
-          INNER JOIN clutches c
-            ON c.id = COALESCE(e.currentClutchId, e.clutchId)
-          WHERE c.pairId = p.id
-            AND c.status = 'Active'
-            AND e.status IN ('Incubating', 'Fertile')
-        ) AS nextExpectedHatchDate
+        species.name AS speciesName
       FROM pairs p
       INNER JOIN birds male ON male.id = p.maleBirdId
       INNER JOIN birds female ON female.id = p.femaleBirdId
@@ -4231,6 +4160,125 @@ class DatabaseHelper {
       ORDER BY cage.identifier COLLATE NOCASE ASC,
         p.identifier COLLATE NOCASE ASC
     ''');
+
+    final eggClutchExpr = hasCurrentClutchId
+        ? 'COALESCE(e.currentClutchId, e.clutchId)'
+        : 'e.clutchId';
+    final result = <Map<String, dynamic>>[];
+
+    for (final base in baseRows) {
+      final pairId = base['id']?.toString() ?? '';
+      try {
+        final clutchRows = await db.query(
+          'clutches',
+          columns: hasExpectedEggs
+              ? ['id', 'status', 'expectedEggs']
+              : ['id', 'status'],
+          where: 'pairId = ?',
+          whereArgs: [pairId],
+        );
+        final activeClutches = clutchRows
+            .where((row) => row['status']?.toString() == 'Active')
+            .toList();
+        final activeClutchIds =
+            activeClutches.map((row) => row['id'].toString()).toList();
+        final activeClutchId =
+            activeClutchIds.isEmpty ? null : activeClutchIds.last;
+        final expectedEggCount = hasExpectedEggs
+            ? activeClutches.fold<int>(
+                0,
+                (sum, row) =>
+                    sum + ((row['expectedEggs'] as num?)?.toInt() ?? 0),
+              )
+            : 0;
+
+        var activeEggCount = 0;
+        var unresolvedEggCount = 0;
+        var hatchedEggCount = 0;
+        var currentEggCount = 0;
+        String? latestEggDate;
+        String? nextExpectedHatchDate;
+        var chicksInNest = 0;
+
+        if (activeClutchIds.isNotEmpty) {
+          final placeholders = List.filled(activeClutchIds.length, '?').join(',');
+          final eggRows = await db.rawQuery('''
+            SELECT e.status, e.laidDate, e.expectedHatchDate
+            FROM eggs e
+            WHERE $eggClutchExpr IN ($placeholders)
+          ''', activeClutchIds);
+          currentEggCount = eggRows.length;
+          for (final egg in eggRows) {
+            final status = egg['status']?.toString() ?? '';
+            if (status == 'Incubating' || status == 'Fertile') {
+              activeEggCount++;
+              unresolvedEggCount++;
+              final hatch = egg['expectedHatchDate']?.toString();
+              final currentNextHatch = nextExpectedHatchDate;
+              if (hatch != null && hatch.isNotEmpty &&
+                  (currentNextHatch == null ||
+                      hatch.compareTo(currentNextHatch) < 0)) {
+                nextExpectedHatchDate = hatch;
+              }
+            }
+            if (status == 'Hatched') hatchedEggCount++;
+            final laid = egg['laidDate']?.toString();
+            final currentLatestEgg = latestEggDate;
+            if (laid != null && laid.isNotEmpty &&
+                (currentLatestEgg == null ||
+                    laid.compareTo(currentLatestEgg) > 0)) {
+              latestEggDate = laid;
+            }
+          }
+
+          if (hasNestClutchId) {
+            final chickRows = await db.rawQuery('''
+              SELECT COUNT(*) AS count
+              FROM birds
+              WHERE nestClutchId IN ($placeholders)
+                AND leftNestDate IS NULL
+                AND COALESCE(active, 1) = 1
+            ''', activeClutchIds);
+            chicksInNest = chickRows.isEmpty
+                ? 0
+                : ((chickRows.first['count'] as num?)?.toInt() ?? 0);
+          }
+        }
+
+        result.add({
+          ...base,
+          'totalClutchCount': clutchRows.length,
+          'activeClutchCount': activeClutches.length,
+          'activeClutchId': activeClutchId,
+          'expectedEggCount': expectedEggCount,
+          'activeEggCount': activeEggCount,
+          'chicksInNest': chicksInNest,
+          'unresolvedEggCount': unresolvedEggCount,
+          'hatchedEggCount': hatchedEggCount,
+          'currentEggCount': currentEggCount,
+          'latestEggDate': latestEggDate,
+          'nextExpectedHatchDate': nextExpectedHatchDate,
+        });
+      } catch (_) {
+        result.add({
+          ...base,
+          'totalClutchCount': 0,
+          'activeClutchCount': 0,
+          'activeClutchId': null,
+          'expectedEggCount': 0,
+          'activeEggCount': 0,
+          'chicksInNest': 0,
+          'unresolvedEggCount': 0,
+          'hatchedEggCount': 0,
+          'currentEggCount': 0,
+          'latestEggDate': null,
+          'nextExpectedHatchDate': null,
+          'metricsUnavailable': 1,
+        });
+      }
+    }
+
+    return result;
   }
 
   Future<Map<String, dynamic>?> getBreedingPairById(String pairId) async {
@@ -5135,6 +5183,7 @@ class DatabaseHelper {
       final duplicate = await txn.rawQuery('''
         SELECT id FROM birds
         WHERE id <> ?
+          AND speciesId = ?
           AND (
             LOWER(TRIM(COALESCE(ringNumber, ''))) = LOWER(?)
             OR (
@@ -5144,9 +5193,9 @@ class DatabaseHelper {
             )
           )
         LIMIT 1
-      ''', [birdId, permanentRing, ringNumber]);
+      ''', [birdId, speciesId, permanentRing, ringNumber]);
       if (duplicate.isNotEmpty) {
-        throw StateError('That ring is already allotted to another bird.');
+        throw StateError('That ring is already allotted to another bird of this species.');
       }
       final eggRows = await txn.query(
         'eggs',
@@ -7696,7 +7745,7 @@ class DatabaseHelper {
         AND value = ? COLLATE NOCASE
       LIMIT 1
     ''', [kind, speciesId, speciesId, clean]);
-    if (duplicate.isNotEmpty) throw StateError('$clean already exists.');
+    if (duplicate.isNotEmpty) throw StateError('$clean is already used for this species.');
     await db.insert('managed_bird_values', {
       'id': const Uuid().v4(),
       'kind': kind,

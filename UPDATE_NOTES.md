@@ -1,3 +1,22 @@
+# Aviary Pro v1.4.20+29
+
+## Breeding list reliability
+
+- Rebuilt the Breeding screen loader so the current pair list is loaded first and cannot be blocked by a summary query.
+- Pair breeding metrics are enriched separately; a malformed legacy clutch/egg metric no longer hides every pair.
+- Retry now reruns the real pair loader.
+
+## Species-scoped rings
+
+- Ring uniqueness is now scoped to **Species + Ring Number** instead of globally across all birds.
+- Budgie `005` and Cockatiel `005` can coexist.
+- Same-species duplicates remain blocked, including numeric equivalents such as `5` and `005` in validation.
+- Add/Edit Bird and bulk purchase duplicate checks now pass the selected species.
+- Permanent-ring assignment for chicks also checks duplicates only inside that chick's species.
+- Database schema version is 16; migration replaces the old global ring unique index with a species-scoped one. No bird records are deleted or rewritten.
+
+---
+
 # Aviary Pro v1.4.19+28
 
 ## Pair and breeding list fix

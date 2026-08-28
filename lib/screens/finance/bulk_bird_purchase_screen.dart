@@ -169,7 +169,11 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
       final entry = _entries[i];
       final ring = entry.ring.text.trim();
       if (ring.isEmpty) return 'Ring / ID is required for Bird ${i + 1}.';
-      if (!rings.add(ring.toLowerCase())) {
+      final numericRing = int.tryParse(ring);
+      final ringKey = numericRing == null
+          ? ring.toLowerCase()
+          : '#numeric:$numericRing';
+      if (!rings.add(ringKey)) {
         return 'Ring / ID "$ring" is repeated in this purchase.';
       }
       final ageDays = _ageDaysFor(entry);
@@ -194,9 +198,10 @@ class _BulkBirdPurchaseScreenState extends State<BulkBirdPurchaseScreen> {
       for (final entry in _entries) {
         final duplicate = await DatabaseHelper.instance.birdRingNumberExists(
           entry.ring.text.trim(),
+          speciesId: _speciesId!,
         );
         if (duplicate) {
-          throw StateError('Ring / ID ${entry.ring.text.trim()} already exists.');
+          throw StateError('Ring / ID ${entry.ring.text.trim()} is already used for this species.');
         }
       }
 

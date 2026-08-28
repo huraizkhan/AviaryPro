@@ -830,12 +830,15 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
     });
 
     final ringNumber = ringController.text.trim();
+    final speciesId = selectedSpeciesId;
     final birdProvider = context.read<BirdProvider>();
 
     try {
       final duplicate = ringNumber.isNotEmpty &&
+          speciesId != null &&
           await DatabaseHelper.instance.birdRingNumberExists(
             ringNumber,
+            speciesId: speciesId,
             excludeBirdId: widget.bird?['id']?.toString(),
           );
 
@@ -843,7 +846,7 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
 
       if (duplicate) {
         setState(() => isSaving = false);
-        _showMessage('This ring number already exists');
+        _showMessage('This ring number is already used for this species');
         return;
       }
 
@@ -912,7 +915,7 @@ class _AddBirdScreenState extends State<AddBirdScreen> {
 
       _showMessage(
         error.isUniqueConstraintError()
-            ? 'This ring number already exists'
+            ? 'This ring number is already used for this species'
             : 'Bird could not be saved',
       );
     } on StateError catch (error) {
